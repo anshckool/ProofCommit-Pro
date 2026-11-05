@@ -1153,6 +1153,7 @@ export default function App() {
               <a
                 className="inline-flex items-center gap-space-sm px-space-xl py-space-md rounded-lg font-mono text-xs font-semibold bg-primary-container text-white hover:bg-primary-container/90 transition-all shadow-[0_0_24px_-4px_rgba(99,102,241,0.35)]"
                 href="#demo"
+                onClick={() => setInputMode('zip')}
               >
                 <FolderArchive className="w-4 h-4" />
                 <span>Upload Project ZIP</span>
@@ -1161,6 +1162,7 @@ export default function App() {
               <a
                 className="inline-flex items-center gap-space-sm px-space-xl py-space-md rounded-lg font-mono text-xs font-medium bg-surface-container border border-outline-variant/50 text-on-surface-variant hover:text-white hover:border-outline-variant transition-colors"
                 href="#demo"
+                onClick={() => setInputMode('single')}
               >
                 <FileCode className="w-4 h-4 text-primary" />
                 <span>Paste Code Directly</span>
@@ -1297,26 +1299,40 @@ export default function App() {
               </p>
             </div>
 
-            {/* Mode Switcher Tabs */}
-            <div className="flex justify-center mb-8">
-              <div className="inline-flex p-1 bg-surface-container-lowest border border-outline-variant/40 rounded-xl font-mono text-xs">
+            {/* Mode Switcher Tabs with Animated Sliding Pill */}
+            <div className="flex justify-center mb-8 px-4">
+              <div className="relative flex p-1 bg-[#0e0e13] border border-[#464554]/60 rounded-xl font-mono text-xs max-w-md w-full shadow-2xl overflow-hidden">
+                {/* Animated Sliding Highlight Pill */}
+                <div
+                  className="absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg bg-gradient-to-r from-[#c0c1ff] to-[#8083ff] shadow-[0_0_20px_rgba(128,131,255,0.45)] transition-transform duration-300 ease-out pointer-events-none"
+                  style={{
+                    left: '4px',
+                    transform: inputMode === 'zip' ? 'translateX(0%)' : 'translateX(100%)',
+                  }}
+                />
+
+                {/* Tab 1: ZIP */}
                 <button
+                  type="button"
                   onClick={() => { setInputMode('zip'); setError(null) }}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-lg transition-all font-semibold \${
+                  className={`relative z-10 flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg transition-colors duration-200 font-semibold \${
                     inputMode === 'zip'
-                      ? 'bg-primary text-on-primary shadow-[0_0_12px_rgba(192,193,255,0.3)]'
-                      : 'text-on-surface-variant hover:text-white'
+                      ? 'text-[#0a0a0f] font-bold'
+                      : 'text-[#908fa0] hover:text-white'
                   }`}
                 >
                   <FolderArchive className="w-4 h-4" />
                   <span>Upload Project (.zip)</span>
                 </button>
+
+                {/* Tab 2: Single */}
                 <button
+                  type="button"
                   onClick={() => { setInputMode('single'); setError(null) }}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-lg transition-all font-semibold \${
+                  className={`relative z-10 flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg transition-colors duration-200 font-semibold \${
                     inputMode === 'single'
-                      ? 'bg-primary text-on-primary shadow-[0_0_12px_rgba(192,193,255,0.3)]'
-                      : 'text-on-surface-variant hover:text-white'
+                      ? 'text-[#0a0a0f] font-bold'
+                      : 'text-[#908fa0] hover:text-white'
                   }`}
                 >
                   <FileText className="w-4 h-4" />
