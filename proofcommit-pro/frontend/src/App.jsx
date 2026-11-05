@@ -1214,7 +1214,6 @@ export default function App() {
               <a className="text-on-surface hover:text-primary transition-colors" href="#features">Features</a>
               <a className="text-on-surface-variant hover:text-on-surface transition-colors" href="#how-it-works">How It Works</a>
               <a className="text-on-surface-variant hover:text-on-surface transition-colors" href="#demo">Demo</a>
-              <a className="text-on-surface-variant hover:text-on-surface transition-colors" href="#team">Team</a>
             </nav>
           </div>
 
@@ -1869,46 +1868,6 @@ export default function App() {
                   </div>
                 )}
 
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ─── TEAM SECTION ─────────────────────────────────────────────────── */}
-        <section className="w-full py-16 px-margin-tablet lg:px-margin-desktop border-b border-outline-variant/30" id="team">
-          <div className="max-w-7xl mx-auto flex flex-col items-center">
-            <div className="text-center mb-12">
-              <span className="font-mono text-xs uppercase font-semibold tracking-widest text-primary">Contributors</span>
-              <h2 className="font-headline text-3xl sm:text-4xl font-semibold text-white tracking-tight mt-1">
-                Core Engineering Team
-              </h2>
-            </div>
-
-            <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
-              <div className="flex items-start gap-space-lg bg-surface-container border border-outline-variant/40 p-6 rounded-xl">
-                <div className="w-12 h-12 rounded-lg bg-surface-container-high border border-outline-variant/60 flex items-center justify-center shrink-0 font-mono text-base font-bold text-primary">
-                  EN
-                </div>
-                <div>
-                  <h3 className="font-headline text-base font-semibold text-white">Elena Novak</h3>
-                  <p className="font-mono text-xs text-primary mb-2">Lead Systems &amp; Verification Engineer (Ex-GitHub)</p>
-                  <p className="text-xs text-on-surface-variant leading-relaxed">
-                    Specializing in static analysis compilers and automated cryptographic audit tooling.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-space-lg bg-surface-container border border-outline-variant/40 p-6 rounded-xl">
-                <div className="w-12 h-12 rounded-lg bg-surface-container-high border border-outline-variant/60 flex items-center justify-center shrink-0 font-mono text-base font-bold text-secondary">
-                  MV
-                </div>
-                <div>
-                  <h3 className="font-headline text-base font-semibold text-white">Marcus Vance</h3>
-                  <p className="font-mono text-xs text-secondary mb-2">AI Safety &amp; Developer Experience (Ex-Linear)</p>
-                  <p className="text-xs text-on-surface-variant leading-relaxed">
-                    Architecting developer-first heuristic evaluation models and high-throughput CI/CD pipelines.
-                  </p>
-                </div>
               </div>
             </div>
           </div>
