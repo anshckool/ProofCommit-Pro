@@ -3,138 +3,150 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
   body {
-    @apply bg-slate-950 text-slate-100 font-sans antialiased;
+    background-color: #131318;
+    color: #e4e1e9;
+    font-family: 'Inter', system-ui, sans-serif;
   }
 }
 
 @layer components {
+  .precision-grid {
+    background-image: linear-gradient(to right, #1f2030 1px, transparent 1px),
+                      linear-gradient(to bottom, #1f2030 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
   .code-editor {
-    @apply font-mono text-sm leading-relaxed;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8125rem;
+    line-height: 1.375rem;
     tab-size: 2;
   }
 
   .metric-card {
-    @apply bg-slate-900 border border-slate-800 rounded-xl p-4 hover:border-slate-700 transition-colors duration-200;
+    background-color: #1f1f25;
+    border: 1px solid rgba(70, 69, 84, 0.4);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    transition: all 0.2s ease;
+  }
+  .metric-card:hover {
+    border-color: rgba(192, 193, 255, 0.4);
   }
 
   .btn-primary {
-    @apply bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2.5 rounded-lg transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: #8083ff;
+    color: #ffffff;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+    box-shadow: 0 0 20px -4px rgba(99, 102, 241, 0.35);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background-color: #6366f1;
+    transform: translateY(-1px);
+  }
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .btn-secondary {
-    @apply bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium px-4 py-2.5 rounded-lg transition-all duration-200 flex items-center gap-2 border border-slate-700 hover:border-slate-600 active:scale-95;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: #1f1f25;
+    border: 1px solid rgba(70, 69, 84, 0.5);
+    color: #c7c4d7;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+  }
+  .btn-secondary:hover:not(:disabled) {
+    color: #ffffff;
+    border-color: #908fa0;
+    background-color: #2a292f;
   }
 
   .btn-amber {
-    @apply bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2.5 rounded-lg transition-all duration-200 flex items-center gap-2 active:scale-95;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: #f59e0b;
+    color: #0f172a;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+  }
+  .btn-amber:hover:not(:disabled) {
+    background-color: #fbbf24;
   }
 
   .btn-green {
-    @apply bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-2.5 rounded-lg transition-all duration-200 flex items-center gap-2 active:scale-95;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: #00a572;
+    color: #ffffff;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+  }
+  .btn-green:hover:not(:disabled) {
+    background-color: #4edea3;
+    color: #003824;
   }
 
-  .severity-high {
-    @apply bg-red-950/60 border-red-800/60 text-red-300;
+  .cert-gradient {
+    background: linear-gradient(135deg, #0e0e13 0%, #1f1f25 50%, #0e0e13 100%);
   }
 
-  .severity-medium {
-    @apply bg-amber-950/60 border-amber-800/60 text-amber-300;
+  .glow-indigo {
+    box-shadow: 0 0 24px rgba(99, 102, 241, 0.25);
   }
 
-  .severity-low {
-    @apply bg-blue-950/60 border-blue-800/60 text-blue-300;
-  }
-
-  .severity-info {
-    @apply bg-slate-800/60 border-slate-700/60 text-slate-300;
-  }
-
-  .tab-active {
-    @apply bg-slate-800 text-slate-100 border-b-2 border-indigo-500;
-  }
-
-  .tab-inactive {
-    @apply text-slate-400 hover:text-slate-200 hover:bg-slate-800/50;
-  }
-
-  .gradient-border {
-    position: relative;
-    background: linear-gradient(#0f172a, #0f172a) padding-box,
-                linear-gradient(135deg, #6366f1, #3b82f6, #06b6d4) border-box;
-    border: 1px solid transparent;
-  }
-
-  .gauge-track {
-    fill: none;
-    stroke: #1e293b;
-    stroke-width: 8;
-  }
-
-  .gauge-fill {
-    fill: none;
-    stroke-width: 8;
-    stroke-linecap: round;
-    transform: rotate(-90deg);
-    transform-origin: 50% 50%;
-    transition: stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+  .shimmer {
+    background: linear-gradient(90deg, #1b1b20 25%, #2a292f 50%, #1b1b20 75%);
+    background-size: 1000px 100%;
+    animation: shimmer 2s infinite;
   }
 }
 
-/* Syntax highlight colours for code patches */
-.patch-added { color: #4ade80; }
-.patch-removed { color: #f87171; }
-.patch-header { color: #60a5fa; }
-.patch-meta { color: #94a3b8; }
-
-/* Certificate gradient */
-.cert-gradient {
-  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
-}
-
-/* Animated shimmer for loading state */
 @keyframes shimmer {
   0% { background-position: -1000px 0; }
   100% { background-position: 1000px 0; }
 }
 
-.shimmer {
-  background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
-  background-size: 1000px 100%;
-  animation: shimmer 2s infinite;
-}
-
-/* Neon glow effects */
-.glow-indigo {
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
-}
-
-.glow-amber {
-  box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
-}
-
-.glow-emerald {
-  box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
-}
-
-/* Feature importance bar */
-.feature-bar {
-  @apply h-2 rounded-full bg-gradient-to-r from-indigo-600 to-blue-500 transition-all duration-700;
-}
-
-/* Print Styles for Verified Skill Certificate */
+/* Print Styles */
 @media print {
   @page {
     size: landscape;
     margin: 0;
   }
-
   body {
-    background-color: #020617 !important;
+    background-color: #0e0e13 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
-
   .no-print {
     display: none !important;
   }
