@@ -30,13 +30,13 @@ function validatePythonSyntax(code) {
       stack.push(pairs[ch])
     } else if (Object.values(pairs).includes(ch)) {
       if (stack.pop() !== ch) {
-        return { valid: false, error: `SyntaxError: Unbalanced bracket or parenthesis near '\${ch}'` }
+        return { valid: false, error: `SyntaxError: Unbalanced bracket or parenthesis near '${ch}'` }
       }
     }
   }
 
   if (stack.length > 0) {
-    return { valid: false, error: `SyntaxError: Unclosed '\${stack[stack.length - 1]}' — unexpected EOF while parsing` }
+    return { valid: false, error: `SyntaxError: Unclosed '${stack[stack.length - 1]}' — unexpected EOF while parsing` }
   }
 
   // Check header statements ending with colon
@@ -44,7 +44,7 @@ function validatePythonSyntax(code) {
   for (let i = 0; i < lines.length; i++) {
     const t = lines[i].trim()
     if (/^(def\s+|class\s+|else$|elif\s+|try$|except(\s+.*)?$|finally$|if\s+|for\s+|while\s+|with\s+)/.test(t) && !t.endsWith(':')) {
-      return { valid: false, error: `SyntaxError on line \${i + 1}: expected ':' at end of statement` }
+      return { valid: false, error: `SyntaxError on line ${i + 1}: expected ':' at end of statement` }
     }
   }
 
@@ -81,18 +81,18 @@ function generateFallbackReview(code, filename, developerName) {
         risk_tier: 'Critical — Syntax Error',
       },
       review: {
-        summary: `Code compilation halted: \${syntaxCheck.error}. Non-syntactic Python source cannot be processed by AST feature extraction or Random Forest classifier.`,
+        summary: `Code compilation halted: ${syntaxCheck.error}. Non-syntactic Python source cannot be processed by AST feature extraction or Random Forest classifier.`,
         issues: [
           { severity: 'High', type: 'Syntax Error', message: syntaxCheck.error },
           { severity: 'High', type: 'AST Extraction Failure', message: 'Compilation failed: Source contains unclosed brackets or missing block colons.' },
           { severity: 'Medium', type: 'Production Readiness', message: 'Syntactically invalid modules will raise compile-time exceptions upon import in Python runtimes.' },
         ],
-        suggested_patch: `# Syntax repair recommendation for \${filename}\n# Ensure all functions, classes, and loops have valid headers ending with ':' and closed brackets.\n`,
+        suggested_patch: `# Syntax repair recommendation for ${filename}\n# Ensure all functions, classes, and loops have valid headers ending with ':' and closed brackets.\n`,
         skill_evidence_score: 15,
         skill_badge: '❌ Syntax Error',
       },
       certificate_eligible: false,
-      certificate_id: `PCPRO-INVALID-\${Date.now().toString(36).toUpperCase()}`,
+      certificate_id: `PCPRO-INVALID-${Date.now().toString(36).toUpperCase()}`,
     }
   }
 
@@ -139,14 +139,14 @@ function generateFallbackReview(code, filename, developerName) {
     issues.push({
       severity: 'High',
       type: 'Complexity',
-      message: `Average cyclomatic complexity is \${avgCC.toFixed(1)} per function. Refactor deeply branching logic into polymorphic dispatchers or clean helper routines.`,
+      message: `Average cyclomatic complexity is ${avgCC.toFixed(1)} per function. Refactor deeply branching logic into polymorphic dispatchers or clean helper routines.`,
     })
   }
   if (maxNestingDepth >= 4) {
     issues.push({
       severity: 'High',
       type: 'Nesting Depth',
-      message: `Maximum nesting depth reached \${maxNestingDepth} levels. Adhere to 'Flat is better than nested' by employing guard clauses and early returns.`,
+      message: `Maximum nesting depth reached ${maxNestingDepth} levels. Adhere to 'Flat is better than nested' by employing guard clauses and early returns.`,
     })
   }
   if (exceptionHandlers === 0) {
@@ -160,7 +160,7 @@ function generateFallbackReview(code, filename, developerName) {
     issues.push({
       severity: 'Medium',
       type: 'Documentation',
-      message: `Docstring coverage is \${(docstringRatio * 100).toFixed(0)}%. Public functions and data models must have PEP-257 compliant docstrings.`,
+      message: `Docstring coverage is ${(docstringRatio * 100).toFixed(0)}%. Public functions and data models must have PEP-257 compliant docstrings.`,
     })
   }
   if (!hasTypeHints) {
@@ -184,8 +184,8 @@ function generateFallbackReview(code, filename, developerName) {
   }
 
   const patch = !isClean
-    ? `--- a/\${filename}
-+++ b/\${filename}
+    ? `--- a/${filename}
++++ b/${filename}
 @@ -1,15 +1,22 @@
 +# Automated ProofCommit Pro Refactor Patch
 +# Decomposes high-nesting branches and introduces defensive boundary validation
@@ -196,8 +196,8 @@ function generateFallbackReview(code, filename, developerName) {
 `
     : `# ✅ Code quality is optimal — zero structural defects detected.
 # Suggested micro-optimisations:
---- a/\${filename}
-+++ b/\${filename}
+--- a/${filename}
++++ b/${filename}
 @@ -1,5 +1,8 @@
 +# Boundary check fast-path verified
 `
@@ -225,15 +225,15 @@ function generateFallbackReview(code, filename, developerName) {
     },
     review: {
       summary: isClean
-        ? `Well-structured, production-ready module with low normalized complexity (mean CC=\${avgCC.toFixed(1)}), full type annotations, \${(docstringRatio * 100).toFixed(0)}% docstring coverage, and defensive error containment.`
-        : `High-complexity module with elevated branching (mean CC=\${avgCC.toFixed(1)}) and \${maxNestingDepth}-level nesting. Lacks defensive exception containment and documentation invariants.`,
+        ? `Well-structured, production-ready module with low normalized complexity (mean CC=${avgCC.toFixed(1)}), full type annotations, ${(docstringRatio * 100).toFixed(0)}% docstring coverage, and defensive error containment.`
+        : `High-complexity module with elevated branching (mean CC=${avgCC.toFixed(1)}) and ${maxNestingDepth}-level nesting. Lacks defensive exception containment and documentation invariants.`,
       issues,
       suggested_patch: patch,
       skill_evidence_score: skillScore,
       skill_badge: badge,
     },
     certificate_eligible: certEligible,
-    certificate_id: `PCPRO-\${Date.now().toString(36).toUpperCase()}-\${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+    certificate_id: `PCPRO-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
   }
 }
 
@@ -244,14 +244,14 @@ async function apiReview(code, filename, developerName) {
   try {
     const ctrl = new AbortController()
     const tid = setTimeout(() => ctrl.abort(), 8000)
-    const res = await fetch(`\${API_BASE}/api/review`, {
+    const res = await fetch(`${API_BASE}/api/review`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code, filename, developer_name: developerName }),
       signal: ctrl.signal,
     })
     clearTimeout(tid)
-    if (!res.ok) throw new Error(`HTTP \${res.status}`)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
     return { data: await res.json(), source: 'api' }
   } catch {
     await new Promise(r => setTimeout(r, 600))
@@ -263,18 +263,18 @@ async function apiCreateOrder(developerName, certificateId) {
   try {
     const ctrl = new AbortController()
     const tid = setTimeout(() => ctrl.abort(), 6000)
-    const res = await fetch(`\${API_BASE}/api/razorpay/create-order`, {
+    const res = await fetch(`${API_BASE}/api/razorpay/create-order`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ developer_name: developerName, certificate_id: certificateId, amount_inr: 299 }),
       signal: ctrl.signal,
     })
     clearTimeout(tid)
-    if (!res.ok) throw new Error(`HTTP \${res.status}`)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
     return await res.json()
   } catch {
     return {
-      order_id: `order_DEMO_\${Date.now().toString(36).toUpperCase()}`,
+      order_id: `order_DEMO_${Date.now().toString(36).toUpperCase()}`,
       amount: 29900,
       currency: 'INR',
       key_id: 'rzp_test_ProofCommitJudgeKey',
@@ -298,7 +298,7 @@ function SeverityBadge({ severity }) {
     Info: <CircleDot className="w-3 h-3" />,
   }
   return (
-    <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full \${map[severity] || map.Info}`}>
+    <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${map[severity] || map.Info}`}>
       {icons[severity]}
       {severity}
     </span>
@@ -341,26 +341,27 @@ function PatchViewer({ patch }) {
 }
 
 function ASTMetricGrid({ metrics }) {
+  const docstringPct = Math.round(Number(metrics?.docstring_ratio || 0) * 100)
   const items = [
-    { label: 'Lines of Code', value: metrics.lines_of_code, icon: <Hash className="w-4 h-4" />, unit: 'LOC', color: 'text-tertiary' },
-    { label: 'AST Nodes', value: metrics.ast_node_count, icon: <GitBranch className="w-4 h-4" />, unit: 'nodes', color: 'text-primary' },
-    { label: 'Cyclomatic CC', value: metrics.cyclomatic_complexity, icon: <Layers className="w-4 h-4" />, unit: 'mean', color: metrics.cyclomatic_complexity > 10 ? 'text-error' : 'text-secondary' },
-    { label: 'Max Nesting', value: metrics.nesting_depth, icon: <ChevronRight className="w-4 h-4" />, unit: 'depth', color: metrics.nesting_depth > 3 ? 'text-amber-400' : 'text-secondary' },
-    { label: 'Functions', value: metrics.function_count, icon: <Code2 className="w-4 h-4" />, unit: 'defs', color: 'text-primary-fixed-dim' },
-    { label: 'Exception Handlers', value: metrics.exception_handlers, icon: <Shield className="w-4 h-4" />, unit: 'try/except', color: metrics.exception_handlers === 0 ? 'text-error' : 'text-secondary' },
-    { label: 'Assertions', value: metrics.assert_count, icon: <CheckCircle className="w-4 h-4" />, unit: 'asserts', color: 'text-tertiary' },
-    { label: 'Docstring Coverage', value: `\${Math.round(metrics.docstring_ratio * 100)}%`, icon: <FileCode className="w-4 h-4" />, unit: 'coverage', color: metrics.docstring_ratio < 0.3 ? 'text-error' : 'text-secondary' },
+    { label: 'Lines of Code', value: metrics?.lines_of_code ?? 0, icon: <Hash className="w-4 h-4" />, unit: 'LOC', color: 'text-tertiary' },
+    { label: 'AST Nodes', value: metrics?.ast_node_count ?? 0, icon: <GitBranch className="w-4 h-4" />, unit: 'nodes', color: 'text-primary' },
+    { label: 'Cyclomatic CC', value: metrics?.cyclomatic_complexity ?? 1, icon: <Layers className="w-4 h-4" />, unit: 'mean', color: (metrics?.cyclomatic_complexity || 1) > 10 ? 'text-error' : 'text-secondary' },
+    { label: 'Max Nesting', value: metrics?.nesting_depth ?? 1, icon: <ChevronRight className="w-4 h-4" />, unit: 'depth', color: (metrics?.nesting_depth || 1) > 3 ? 'text-amber-400' : 'text-secondary' },
+    { label: 'Functions', value: metrics?.function_count ?? 0, icon: <Code2 className="w-4 h-4" />, unit: 'defs', color: 'text-primary-fixed-dim' },
+    { label: 'Exception Handlers', value: metrics?.exception_handlers ?? 0, icon: <Shield className="w-4 h-4" />, unit: 'try/except', color: (metrics?.exception_handlers || 0) === 0 ? 'text-error' : 'text-secondary' },
+    { label: 'Assertions', value: metrics?.assert_count ?? 0, icon: <CheckCircle className="w-4 h-4" />, unit: 'asserts', color: 'text-tertiary' },
+    { label: 'Docstring Coverage', value: `${docstringPct}%`, icon: <FileCode className="w-4 h-4" />, unit: 'coverage', color: docstringPct < 30 ? 'text-error' : 'text-secondary' },
   ]
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
       {items.map(item => (
-        <div key={item.label} className="bg-[#1b1b20] border border-[#464554]/40 rounded-lg p-3 hover:border-primary/40 transition-colors">
-          <div className={`flex items-center gap-1.5 mb-1 \${item.color}`}>
+        <div key={item.label} className="bg-[#1b1b20] border border-[#464554]/40 rounded-lg p-3 hover:border-primary/40 transition-colors flex flex-col justify-between min-h-[92px]">
+          <div className={`flex items-center gap-1.5 mb-1 ${item.color}`}>
             {item.icon}
-            <span className="text-xs font-medium text-slate-300 font-sans">{item.label}</span>
+            <span className="text-[11px] font-medium text-slate-300 font-sans truncate">{item.label}</span>
           </div>
-          <div className={`text-xl font-bold font-mono \${item.color}`}>{item.value}</div>
+          <div className={`text-xl font-bold font-mono tracking-tight ${item.color}`}>{item.value}</div>
           <div className="text-[10px] text-slate-500 font-mono mt-0.5">{item.unit}</div>
         </div>
       ))}
@@ -395,7 +396,7 @@ function ModelBenchmarkCard() {
       <div className="grid grid-cols-2 gap-2 mb-3">
         {metrics.map(m => (
           <div key={m.label} className="rounded-lg border border-[#464554]/40 bg-[#0e0e13] px-3 py-2">
-            <div className={`text-lg font-bold font-mono \${m.color}`}>{m.value}%</div>
+            <div className={`text-lg font-bold font-mono ${m.color}`}>{m.value}%</div>
             <div className="text-xs text-slate-400">{m.label}</div>
           </div>
         ))}
@@ -410,7 +411,7 @@ function ModelBenchmarkCard() {
               <div className="flex-1 bg-[#0e0e13] rounded-full h-1.5 overflow-hidden border border-[#464554]/30">
                 <div
                   className="h-1.5 rounded-full bg-gradient-to-r from-primary to-secondary"
-                  style={{ width: `\${f.pct}%` }}
+                  style={{ width: `${f.pct}%` }}
                 />
               </div>
               <span className="text-xs font-mono text-slate-400 w-7 text-right">{f.pct}%</span>
@@ -435,7 +436,7 @@ function CertificateModal({ result, developerName, projectName, totalFiles, tota
     : '9AM Bronze: Foundation Developer'
 
   const subjectTitle = projectName
-    ? `REPOSITORY / PROJECT AUDIT: \${projectName.toUpperCase()} (\${totalFiles || 1} FILES, \${totalLoc || result?.metrics?.lines_of_code || 0} LOC)`
+    ? `REPOSITORY / PROJECT AUDIT: ${projectName.toUpperCase()} (${totalFiles || 1} FILES, ${totalLoc || result?.metrics?.lines_of_code || 0} LOC)`
     : 'PROOFS OF COMPETENCE IN CRYPTOGRAPHY & DISTRIBUTED SYSTEMS'
 
   const generateCertificateCanvas = () => {
@@ -514,8 +515,8 @@ function CertificateModal({ result, developerName, projectName, totalFiles, tota
       ['Certificate ID', result.certificate_id],
       ['Review Date', certDate],
       ['ML Risk Tier', result.ml_risk.risk_tier || 'Low Risk'],
-      ['Defect Probability', `\${(result.ml_risk.defect_probability * 100).toFixed(1)}%`],
-      ['Target Evaluated', projectName ? `\${projectName} (\${totalFiles} files)` : result.filename],
+      ['Defect Probability', `${(result.ml_risk.defect_probability * 100).toFixed(1)}%`],
+      ['Target Evaluated', projectName ? `${projectName} (${totalFiles} files)` : result.filename],
       ['Verification Engine', 'Random Forest + Gemini 2.5 Flash'],
     ]
 
@@ -571,14 +572,14 @@ function CertificateModal({ result, developerName, projectName, totalFiles, tota
       format: 'a4'
     })
     pdf.addImage(imgData, 'PNG', 0, 0, 297, 210)
-    pdf.save(`ProofCommit-Certificate-\${result.certificate_id}.pdf`)
+    pdf.save(`ProofCommit-Certificate-${result.certificate_id}.pdf`)
   }
 
   const downloadCertificateAsPng = () => {
     const canvas = generateCertificateCanvas()
     if (!canvas) return
     const link = document.createElement('a')
-    link.download = `ProofCommit-Certificate-\${result.certificate_id}.png`
+    link.download = `ProofCommit-Certificate-${result.certificate_id}.png`
     link.href = canvas.toDataURL('image/png')
     link.click()
   }
@@ -592,7 +593,7 @@ function CertificateModal({ result, developerName, projectName, totalFiles, tota
       printWindow.document.write(`<!DOCTYPE html>
 <html>
   <head>
-    <title>ProofCommit-Certificate-\${result.certificate_id}</title>
+    <title>ProofCommit-Certificate-${result.certificate_id}</title>
     <style>
       @page { size: landscape; margin: 0; }
       * { box-sizing: border-box; }
@@ -641,7 +642,7 @@ function CertificateModal({ result, developerName, projectName, totalFiles, tota
     </style>
   </head>
   <body>
-    <img id="cert-img" src="\${imgData}" alt="Certificate" />
+    <img id="cert-img" src="${imgData}" alt="Certificate" />
     <script>
       const img = document.getElementById('cert-img');
       function triggerPrint() {
@@ -689,10 +690,10 @@ function CertificateModal({ result, developerName, projectName, totalFiles, tota
             <div>
               <p className="text-[10px] text-outline uppercase tracking-wider mb-0.5">Awarded to</p>
               <p className="text-xl font-bold text-white font-headline">{developerName || 'Developer'}</p>
-              <p className={`text-xs font-semibold mt-0.5 \${scoreColor}`}>{tierName}</p>
+              <p className={`text-xs font-semibold mt-0.5 ${scoreColor}`}>{tierName}</p>
             </div>
             <div className="text-center">
-              <div className={`text-4xl font-black font-mono \${scoreColor}`}>{score}</div>
+              <div className={`text-4xl font-black font-mono ${scoreColor}`}>{score}</div>
               <div className="text-[10px] text-outline font-mono">Skill Score</div>
             </div>
           </div>
@@ -881,7 +882,7 @@ export default function App() {
     setError(null)
     setSingleResult(null)
     setProjectResult(null)
-    setProgressText(`Unpacking \${file.name} in-memory…`)
+    setProgressText(`Unpacking ${file.name} in-memory…`)
 
     try {
       const zip = await JSZip.loadAsync(file)
@@ -903,7 +904,7 @@ export default function App() {
         throw new Error('No Python (.py) files found in the uploaded zip archive.')
       }
 
-      setProgressText(`Discovered \${pyFiles.length} Python modules. Running AST & Random Forest analysis…`)
+      setProgressText(`Discovered ${pyFiles.length} Python modules. Running AST & Random Forest analysis…`)
 
       const fileResults = []
       let totalLOC = 0
@@ -919,7 +920,7 @@ export default function App() {
 
       for (let i = 0; i < pyFiles.length; i++) {
         const { path, entry } = pyFiles[i]
-        setProgressText(`Analyzing (\${i + 1}/\${pyFiles.length}): \${path}`)
+        setProgressText(`Analyzing (${i + 1}/${pyFiles.length}): ${path}`)
         const content = await entry.async('string')
         const review = generateFallbackReview(content, path, developerName || 'Developer')
 
@@ -989,12 +990,12 @@ export default function App() {
           risk_tier: projectRiskTier,
         },
         review: {
-          summary: `Whole-project evaluation completed for \${file.name}. Inspected \${fileCount} Python files totaling \${totalLOC.toLocaleString()} LOC. Overall architecture maintains mean CC=\${avgCC} with \${totalExceptions} exception containment boundaries and \${(docstringRatio * 100).toFixed(0)}% docstring compliance.`,
+          summary: `Whole-project evaluation completed for ${file.name}. Inspected ${fileCount} Python files totaling ${totalLOC.toLocaleString()} LOC. Overall architecture maintains mean CC=${avgCC} with ${totalExceptions} exception containment boundaries and ${(docstringRatio * 100).toFixed(0)}% docstring compliance.`,
           skill_evidence_score: avgSkillScore,
           skill_badge: projectBadge,
         },
         certificate_eligible: certEligible,
-        certificate_id: `PCPRO-REPO-\${Date.now().toString(36).toUpperCase()}-\${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+        certificate_id: `PCPRO-REPO-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
         fileResults,
       }
 
@@ -1315,7 +1316,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => { setInputMode('zip'); setError(null) }}
-                  className={`relative z-10 flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg transition-colors duration-200 font-semibold \${
+                  className={`relative z-10 flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg transition-colors duration-200 font-semibold ${
                     inputMode === 'zip'
                       ? 'text-[#0a0a0f] font-bold'
                       : 'text-[#908fa0] hover:text-white'
@@ -1329,7 +1330,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => { setInputMode('single'); setError(null) }}
-                  className={`relative z-10 flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg transition-colors duration-200 font-semibold \${
+                  className={`relative z-10 flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg transition-colors duration-200 font-semibold ${
                     inputMode === 'single'
                       ? 'text-[#0a0a0f] font-bold'
                       : 'text-[#908fa0] hover:text-white'
@@ -1543,7 +1544,7 @@ export default function App() {
                         </div>
                         <div className="bg-[#0e0e13] p-2.5 rounded border border-outline-variant/30 text-center">
                           <span className="text-[10px] text-outline block">Defect Risk</span>
-                          <span className={`font-bold text-sm \${
+                          <span className={`font-bold text-sm ${
                             projectResult.ml_risk.predicted_risk_label === 'HIGH' ? 'text-error' :
                             projectResult.ml_risk.predicted_risk_label === 'MEDIUM' ? 'text-amber-400' : 'text-secondary'
                           }`}>
@@ -1568,7 +1569,7 @@ export default function App() {
                           <button
                             key={item.path}
                             onClick={() => setSelectedFileIdx(idx)}
-                            className={`w-full text-left px-4 py-2.5 flex items-center justify-between transition-colors \${
+                            className={`w-full text-left px-4 py-2.5 flex items-center justify-between transition-colors ${
                               selectedFileIdx === idx
                                 ? 'bg-primary/10 border-l-2 border-primary'
                                 : 'hover:bg-surface-container-high'
@@ -1580,7 +1581,7 @@ export default function App() {
                             </div>
                             <div className="flex items-center gap-3 shrink-0 text-[11px]">
                               <span className="text-outline">{item.review.metrics.lines_of_code} LOC</span>
-                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold \${
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
                                 item.review.ml_risk.predicted_risk_label === 'HIGH' ? 'bg-red-950 text-red-300' :
                                 item.review.ml_risk.predicted_risk_label === 'MEDIUM' ? 'bg-amber-950 text-amber-300' :
                                 'bg-emerald-950 text-emerald-300'
@@ -1668,7 +1669,7 @@ export default function App() {
                         </div>
                       </div>
                       <div className="text-right font-mono text-xs">
-                        <span className={`px-2 py-1 rounded text-xs font-semibold \${
+                        <span className={`px-2 py-1 rounded text-xs font-semibold ${
                           singleResult.ml_risk.predicted_risk_label === 'HIGH' || singleResult.ml_risk.predicted_risk_label === 'CRITICAL' ? 'bg-red-950/60 text-red-300 border border-red-800/60' :
                           singleResult.ml_risk.predicted_risk_label === 'MEDIUM' ? 'bg-amber-950/60 text-amber-300 border border-amber-800/60' :
                           'bg-emerald-950/60 text-emerald-300 border border-emerald-800/60'
