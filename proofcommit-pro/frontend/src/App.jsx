@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
+import { Analytics } from '@vercel/analytics/react'
 import {
   Code2, Zap, Shield, Trophy, AlertTriangle, CheckCircle, Info,
   Copy, Download, CreditCard, ChevronRight, BarChart3, GitBranch,
@@ -1249,6 +1250,7 @@ export default function App() {
           </a>
         </div>
       </footer>
+      <Analytics />
     </div>
   )
 }
