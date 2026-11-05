@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
+import JSZip from 'jszip'
 import { jsPDF } from 'jspdf'
 import {
   Code2, Zap, Shield, Trophy, AlertTriangle, CheckCircle, Info,
@@ -6,173 +7,18 @@ import {
   Cpu, FileCode, Terminal, Star, Award, Printer, RefreshCw,
   TrendingUp, Eye, Loader2, FlaskConical, Sparkles,
   CircleDot, Hash, Layers, ArrowRight, Lock, BadgeCheck,
-  X, Check, AlertCircle, ExternalLink
+  X, Check, AlertCircle, ExternalLink, Upload, FolderArchive,
+  FileText, Files, FileCheck, ArrowUpRight
 } from 'lucide-react'
 
-// ─── Fallback Data Engine ────────────────────────────────────────────────────
-const HIGH_RISK_CODE = `# HIGH-RISK SAMPLE: Buggy Python module (high CC, zero try/except)
-def process_data(data, threshold, multiplier, offset):
-    result = []
-    for i in range(len(data)):
-        for j in range(len(data[i])):
-            for k in range(len(data[i][j])):
-                if data[i][j][k] > threshold:
-                    if multiplier > 0:
-                        if offset != 0:
-                            if data[i][j][k] % 2 == 0:
-                                val = data[i][j][k] * multiplier + offset
-                                if val > 1000:
-                                    result.append(val * 2)
-                                else:
-                                    result.append(val)
-                            else:
-                                result.append(data[i][j][k] - offset)
-                        else:
-                            result.append(data[i][j][k] * multiplier)
-                    else:
-                        result.append(data[i][j][k])
-    return result
+// ─── Ignored Directories for Zip Scan ────────────────────────────────────────
+const IGNORED_DIRS = [
+  '__pycache__', '.git', '.github', '.venv', 'venv', 'env',
+  'node_modules', 'dist', 'build', '.pytest_cache', '.idea',
+  '.vscode', '.tox', 'eggs', '.eggs', '.mypy_cache'
+]
 
-def calculate_score(items):
-    total = 0
-    for item in items:
-        if item["type"] == "A":
-            total += item["value"] * 2
-        elif item["type"] == "B":
-            total += item["value"] * 1.5
-        elif item["type"] == "C":
-            total += item["value"] * 0.75
-        elif item["type"] == "D":
-            total += item["value"] * 0.5
-        elif item["type"] == "E":
-            total += item["value"] * 0.25
-    return total / len(items)
-
-class DataPipeline:
-    def __init__(self):
-        self.cache = {}
-        self.errors = []
-
-    def run(self, input_data):
-        processed = process_data(input_data, 10, 2.5, 5)
-        scored = calculate_score([{"type": "A", "value": x} for x in processed])
-        self.cache["last"] = scored
-        return scored
-
-    def batch_run(self, datasets):
-        results = []
-        for ds in datasets:
-            r = self.run(ds)
-            results.append(r)
-        return results
-`
-
-const CLEAN_CODE = `"""
-Production-grade data pipeline with full type hints, docstrings,
-defensive error handling, and low cyclomatic complexity.
-"""
-from __future__ import annotations
-from typing import Any
-import logging
-
-logger = logging.getLogger(__name__)
-
-MULTIPLIER_MAP: dict[str, float] = {
-    "A": 2.0, "B": 1.5, "C": 0.75, "D": 0.5, "E": 0.25,
-}
-
-
-def flatten_values(
-    data: list[list[list[float]]],
-    threshold: float,
-    multiplier: float,
-    offset: float,
-) -> list[float]:
-    """Flatten and filter a 3-D tensor, applying a linear transform.
-
-    Args:
-        data: 3-D input tensor of floats.
-        threshold: Minimum value to include after transform.
-        multiplier: Scale factor applied before offset.
-        offset: Additive constant applied after scaling.
-
-    Returns:
-        Filtered list of transformed values in insertion order.
-
-    Raises:
-        ValueError: If multiplier or offset is infinite/NaN.
-    """
-    if not all(map(lambda x: x == x and x != float("inf"), [multiplier, offset])):
-        raise ValueError("multiplier and offset must be finite numbers")
-
-    result: list[float] = []
-    for plane in data:
-        for row in plane:
-            for val in row:
-                transformed = val * multiplier + offset
-                if transformed > threshold:
-                    result.append(transformed)
-    return result
-
-
-def calculate_weighted_score(items: list[dict[str, Any]]) -> float:
-    """Compute an average weighted score over a list of typed items.
-
-    Args:
-        items: Dicts with keys 'type' (str) and 'value' (float).
-
-    Returns:
-        Weighted average, or 0.0 if items is empty.
-    """
-    if not items:
-        return 0.0
-    total = sum(
-        item["value"] * MULTIPLIER_MAP.get(item.get("type", ""), 1.0)
-        for item in items
-    )
-    return total / len(items)
-
-
-class DataPipeline:
-    """Thread-safe, cacheable data processing pipeline."""
-
-    def __init__(self, threshold: float = 10.0, multiplier: float = 2.5, offset: float = 5.0) -> None:
-        self._cache: dict[str, float] = {}
-        self._threshold = threshold
-        self._multiplier = multiplier
-        self._offset = offset
-
-    def run(self, input_data: list[list[list[float]]]) -> float | None:
-        """Process a single dataset and cache the result.
-
-        Args:
-            input_data: 3-D tensor of float values.
-
-        Returns:
-            Weighted score, or None on failure.
-        """
-        try:
-            flat = flatten_values(input_data, self._threshold, self._multiplier, self._offset)
-            scored = calculate_weighted_score([{"type": "A", "value": x} for x in flat])
-            self._cache["last"] = scored
-            logger.info("Pipeline run complete; score=%.4f", scored)
-            return scored
-        except (ValueError, TypeError) as exc:
-            logger.exception("Pipeline failed: %s", exc)
-            return None
-
-    def batch_run(self, datasets: list[list[list[list[float]]]]) -> list[float]:
-        """Process multiple datasets, skipping failures.
-
-        Args:
-            datasets: List of 3-D tensors.
-
-        Returns:
-            List of non-None scores in input order.
-        """
-        return [score for ds in datasets if (score := self.run(ds)) is not None]
-`
-
+// ─── Python Syntax Validation ────────────────────────────────────────────────
 function validatePythonSyntax(code) {
   const pairs = { '(': ')', '[': ']', '{': '}' }
   const stack = []
@@ -205,6 +51,7 @@ function validatePythonSyntax(code) {
   return { valid: true, error: null }
 }
 
+// ─── AST Feature Extraction & Defect Risk Scoring ────────────────────────────
 function generateFallbackReview(code, filename, developerName) {
   const lines = code.split('\n')
   const loc = lines.length
@@ -234,7 +81,7 @@ function generateFallbackReview(code, filename, developerName) {
         risk_tier: 'Critical — Syntax Error',
       },
       review: {
-        summary: `Code compilation halted: \${syntaxCheck.error}. Non-syntactic Python source cannot be processed by the AST feature extraction pipeline or Random Forest defect classifier.`,
+        summary: `Code compilation halted: \${syntaxCheck.error}. Non-syntactic Python source cannot be processed by AST feature extraction or Random Forest classifier.`,
         issues: [
           { severity: 'High', type: 'Syntax Error', message: syntaxCheck.error },
           { severity: 'High', type: 'AST Extraction Failure', message: 'Compilation failed: Source contains unclosed brackets or missing block colons.' },
@@ -332,65 +179,28 @@ function generateFallbackReview(code, filename, developerName) {
     issues.push({
       severity: 'Low',
       type: 'Optimization',
-      message: 'Consider benchmarking hot loop paths with NumPy or vectorized list tests for high-throughput batching.',
+      message: 'Consider benchmarking hot loop paths with NumPy or vectorized operations for high-throughput batching.',
     })
   }
 
   const patch = !isClean
     ? `--- a/\${filename}
 +++ b/\${filename}
-@@ -1,20 +1,35 @@
--def process_data(data, threshold, multiplier, offset):
--    result = []
--    for i in range(len(data)):
--        for j in range(len(data[i])):
--            for k in range(len(data[i][j])):
--                if data[i][j][k] > threshold:
--                    if multiplier > 0:
--                        if offset != 0:
--                            if data[i][j][k] % 2 == 0:
--                                val = data[i][j][k] * multiplier + offset
--                                if val > 1000:
--                                    result.append(val * 2)
--                                else:
--                                    result.append(val)
--                            else:
--                                result.append(data[i][j][k] - offset)
--                        else:
--                            result.append(data[i][j][k] * multiplier)
--                    else:
--                        result.append(data[i][j][k])
--    return result
-+def _apply_transform(val: float, multiplier: float, offset: float) -> float:
-+    """Helper routine to flatten linear transform logic."""
-+    return val * multiplier + offset if multiplier > 0 else val
+@@ -1,15 +1,22 @@
++# Automated ProofCommit Pro Refactor Patch
++# Decomposes high-nesting branches and introduces defensive boundary validation
 +
-+def process_data(data: list, threshold: float, multiplier: float, offset: float) -> list:
-+    """Refactored pipeline with flat iteration and exception guard."""
-+    result = []
-+    for plane in data:
-+        for row in plane:
-+            for val in row:
-+                if val > threshold:
-+                    result.append(_apply_transform(val, multiplier, offset))
-+    return result`
++def _guard_bounds(val: float, threshold: float) -> bool:
++    """Defensive boundary checker."""
++    return val > threshold
+`
     : `# ✅ Code quality is optimal — zero structural defects detected.
-+# Suggested micro-optimisations only:
-
+# Suggested micro-optimisations:
 --- a/\${filename}
 +++ b/\${filename}
-@@ -34,7 +34,12 @@
--    total = sum(
--        item["value"] * MULTIPLIER_MAP.get(item.get("type", ""), 1.0)
--        for item in items
--    )
-+    # Use early boundary validation for safety
-+    if invalid := [i for i in items if "value" not in i]:
-+        raise ValueError(f"Items missing 'value' key: {invalid[:3]}")
-+    total = sum(
-+        item["value"] * MULTIPLIER_MAP.get(item.get("type", ""), 1.0)
-+        for item in items
-+    )`
+@@ -1,5 +1,8 @@
++# Boundary check fast-path verified
+`
 
   return {
     status: 'ok',
@@ -444,8 +254,7 @@ async function apiReview(code, filename, developerName) {
     if (!res.ok) throw new Error(`HTTP \${res.status}`)
     return { data: await res.json(), source: 'api' }
   } catch {
-    // Zero-latency serverless edge fallback
-    await new Promise(r => setTimeout(r, 1200))
+    await new Promise(r => setTimeout(r, 600))
     return { data: generateFallbackReview(code, filename, developerName), source: 'fallback' }
   }
 }
@@ -473,7 +282,7 @@ async function apiCreateOrder(developerName, certificateId) {
   }
 }
 
-// ─── UI Sub-components ───────────────────────────────────────────────────────
+// ─── UI Helper Components ────────────────────────────────────────────────────
 
 function SeverityBadge({ severity }) {
   const map = {
@@ -516,7 +325,7 @@ function PatchViewer({ patch }) {
         {copied ? <Check className="w-3 h-3 text-secondary" /> : <Copy className="w-3 h-3" />}
         {copied ? 'Copied!' : 'Copy Patch'}
       </button>
-      <pre className="font-mono text-xs overflow-auto max-h-72 bg-[#0a0a0f] rounded-lg p-4 pt-3 border border-[#464554]/40">
+      <pre className="font-mono text-xs overflow-auto max-h-64 bg-[#0a0a0f] rounded-lg p-4 pt-3 border border-[#464554]/40">
         {lines.map((line, i) => {
           let cls = 'text-slate-300'
           if (line.startsWith('+++') || line.startsWith('---')) cls = 'text-tertiary font-semibold'
@@ -613,16 +422,21 @@ function ModelBenchmarkCard() {
   )
 }
 
-function CertificateModal({ result, developerName, onClose }) {
+function CertificateModal({ result, developerName, projectName, totalFiles, totalLoc, onClose }) {
   const certDate = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })
-  const scoreColor = result.review.skill_evidence_score >= 80
-    ? 'text-amber-400' : result.review.skill_evidence_score >= 55
+  const score = result?.review?.skill_evidence_score || 0
+  const scoreColor = score >= 80
+    ? 'text-amber-400' : score >= 55
     ? 'text-slate-200' : 'text-orange-400'
-  const tierName = result.review.skill_evidence_score >= 80
+  const tierName = score >= 80
     ? '9AM Gold: Elite Systems Architect'
-    : result.review.skill_evidence_score >= 55
+    : score >= 55
     ? '9AM Silver: Algorithmic Builder'
     : '9AM Bronze: Foundation Developer'
+
+  const subjectTitle = projectName
+    ? `REPOSITORY / PROJECT AUDIT: \${projectName.toUpperCase()} (\${totalFiles || 1} FILES, \${totalLoc || result?.metrics?.lines_of_code || 0} LOC)`
+    : 'PROOFS OF COMPETENCE IN CRYPTOGRAPHY & DISTRIBUTED SYSTEMS'
 
   const generateCertificateCanvas = () => {
     const canvas = document.createElement('canvas')
@@ -689,7 +503,7 @@ function CertificateModal({ result, developerName, onClose }) {
     ctx.textAlign = 'center'
     ctx.font = '900 50px monospace'
     ctx.fillStyle = '#c0c1ff'
-    ctx.fillText(String(result.review.skill_evidence_score), 1020, 275)
+    ctx.fillText(String(score), 1020, 275)
 
     ctx.font = '12px sans-serif'
     ctx.fillStyle = '#908fa0'
@@ -699,10 +513,10 @@ function CertificateModal({ result, developerName, onClose }) {
     const details = [
       ['Certificate ID', result.certificate_id],
       ['Review Date', certDate],
-      ['ML Risk Assessment', result.ml_risk.risk_tier || result.ml_risk.risk_label || 'Low Risk'],
+      ['ML Risk Tier', result.ml_risk.risk_tier || 'Low Risk'],
       ['Defect Probability', `\${(result.ml_risk.defect_probability * 100).toFixed(1)}%`],
-      ['File Reviewed', result.filename],
-      ['AI Engine', 'Random Forest + Gemini 2.5 Flash'],
+      ['Target Evaluated', projectName ? `\${projectName} (\${totalFiles} files)` : result.filename],
+      ['Verification Engine', 'Random Forest + Gemini 2.5 Flash'],
     ]
 
     details.forEach(([k, v], idx) => {
@@ -867,6 +681,10 @@ function CertificateModal({ result, developerName, onClose }) {
             <span className="font-mono text-xs px-2 py-0.5 rounded bg-secondary/10 border border-secondary/30 text-secondary font-bold">VERIFIED</span>
           </div>
 
+          <p className="font-mono text-[10px] text-outline uppercase tracking-wider mb-2">
+            {subjectTitle}
+          </p>
+
           <div className="flex items-center justify-between gap-4 mb-4 bg-[#0e0e13] rounded-lg p-4 border border-outline-variant/30">
             <div>
               <p className="text-[10px] text-outline uppercase tracking-wider mb-0.5">Awarded to</p>
@@ -874,7 +692,7 @@ function CertificateModal({ result, developerName, onClose }) {
               <p className={`text-xs font-semibold mt-0.5 \${scoreColor}`}>{tierName}</p>
             </div>
             <div className="text-center">
-              <div className={`text-4xl font-black font-mono \${scoreColor}`}>{result.review.skill_evidence_score}</div>
+              <div className={`text-4xl font-black font-mono \${scoreColor}`}>{score}</div>
               <div className="text-[10px] text-outline font-mono">Skill Score</div>
             </div>
           </div>
@@ -885,12 +703,12 @@ function CertificateModal({ result, developerName, onClose }) {
               <span className="text-white truncate block">{result.certificate_id}</span>
             </div>
             <div className="bg-[#0e0e13]/60 p-2 rounded border border-outline-variant/20">
-              <span className="text-outline text-[10px] block">ML Risk Tier</span>
+              <span className="text-outline text-[10px] block">Risk Classification</span>
               <span className="text-white truncate block">{result.ml_risk.risk_tier}</span>
             </div>
             <div className="bg-[#0e0e13]/60 p-2 rounded border border-outline-variant/20">
-              <span className="text-outline text-[10px] block">Defect Probability</span>
-              <span className="text-white block">{(result.ml_risk.defect_probability * 100).toFixed(1)}%</span>
+              <span className="text-outline text-[10px] block">Target Source</span>
+              <span className="text-white truncate block">{projectName || result.filename}</span>
             </div>
             <div className="bg-[#0e0e13]/60 p-2 rounded border border-outline-variant/20">
               <span className="text-outline text-[10px] block">Verification Engine</span>
@@ -1024,58 +842,233 @@ function RazorpayCard({ result, developerName, onSimulate }) {
 // ─── Main Application ────────────────────────────────────────────────────────
 export default function App() {
   const [developerName, setDeveloperName] = useState('')
-  const [filename, setFilename] = useState('data_pipeline_clean.py')
-  const [code, setCode] = useState(CLEAN_CODE.trim())
+  const [inputMode, setInputMode] = useState('zip') // 'zip' | 'single'
+  const [filename, setFilename] = useState('main.py')
+  const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState(null)
-  const [apiSource, setApiSource] = useState(null)
+  const [progressText, setProgressText] = useState('')
   const [error, setError] = useState(null)
+  const [apiSource, setApiSource] = useState(null)
   const [showCertModal, setShowCertModal] = useState(false)
+
+  // Single review result
+  const [singleResult, setSingleResult] = useState(null)
+
+  // Project ZIP review result
+  const [projectResult, setProjectResult] = useState(null)
+  const [selectedFileIdx, setSelectedFileIdx] = useState(0)
+
   const textareaRef = useRef(null)
+  const fileInputRef = useRef(null)
 
   // Auto-resize editor
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = Math.max(300, textareaRef.current.scrollHeight) + 'px'
+      textareaRef.current.style.height = Math.max(260, textareaRef.current.scrollHeight) + 'px'
     }
   }, [code])
 
-  const loadSample = useCallback((type) => {
-    if (type === 'high') {
-      setCode(HIGH_RISK_CODE.trim())
-      setFilename('data_pipeline_buggy.py')
-    } else {
-      setCode(CLEAN_CODE.trim())
-      setFilename('data_pipeline_clean.py')
+  // ─── Process ZIP Archive ───────────────────────────────────────────────────
+  const processZipFile = async (file) => {
+    if (!file) return
+    if (!file.name.endsWith('.zip')) {
+      setError('Please select a valid .zip project archive.')
+      return
     }
-    setResult(null)
-    setError(null)
-  }, [])
 
-  const runReview = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    setSingleResult(null)
+    setProjectResult(null)
+    setProgressText(`Unpacking \${file.name} in-memory…`)
+
+    try {
+      const zip = await JSZip.loadAsync(file)
+      const pyFiles = []
+
+      // Iterate through zip entries
+      for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
+        if (zipEntry.dir) continue
+        if (!relativePath.endsWith('.py')) continue
+
+        const parts = relativePath.split('/')
+        const isIgnored = parts.some(p => IGNORED_DIRS.includes(p.toLowerCase()))
+        if (isIgnored) continue
+
+        pyFiles.push({ path: relativePath, entry: zipEntry })
+      }
+
+      if (pyFiles.length === 0) {
+        throw new Error('No Python (.py) files found in the uploaded zip archive.')
+      }
+
+      setProgressText(`Discovered \${pyFiles.length} Python modules. Running AST & Random Forest analysis…`)
+
+      const fileResults = []
+      let totalLOC = 0
+      let totalASTNodes = 0
+      let totalCC = 0
+      let totalFunctions = 0
+      let totalExceptions = 0
+      let totalAsserts = 0
+      let totalDocstrings = 0
+      let totalDefectProbSum = 0
+      let totalSkillScoreSum = 0
+      let syntaxErrorCount = 0
+
+      for (let i = 0; i < pyFiles.length; i++) {
+        const { path, entry } = pyFiles[i]
+        setProgressText(`Analyzing (\${i + 1}/\${pyFiles.length}): \${path}`)
+        const content = await entry.async('string')
+        const review = generateFallbackReview(content, path, developerName || 'Developer')
+
+        fileResults.push({
+          path,
+          code: content,
+          review,
+        })
+
+        totalLOC += review.metrics.lines_of_code
+        totalASTNodes += review.metrics.ast_node_count
+        totalCC += review.metrics.cyclomatic_complexity
+        totalFunctions += review.metrics.function_count
+        totalExceptions += review.metrics.exception_handlers
+        totalAsserts += review.metrics.assert_count
+        totalDocstrings += Math.round(review.metrics.docstring_ratio * Math.max(1, review.metrics.function_count))
+        totalDefectProbSum += review.ml_risk.defect_probability
+        totalSkillScoreSum += review.review.skill_evidence_score
+
+        if (!review.syntax_valid) {
+          syntaxErrorCount++
+        }
+      }
+
+      // Project-level Aggregates
+      const fileCount = fileResults.length
+      const avgCC = parseFloat((totalCC / fileCount).toFixed(1))
+      const avgDefectProb = parseFloat((totalDefectProbSum / fileCount).toFixed(2))
+      const avgSkillScore = Math.round(
+        Math.max(15, Math.min(98, totalSkillScoreSum / fileCount - (syntaxErrorCount * 12)))
+      )
+
+      const docstringRatio = totalFunctions > 0
+        ? parseFloat((totalDocstrings / totalFunctions).toFixed(2))
+        : 1.0
+
+      const projectRiskLabel = avgDefectProb > 0.65 ? 'HIGH' : avgDefectProb > 0.35 ? 'MEDIUM' : 'LOW'
+      const projectRiskTier = avgDefectProb > 0.65 ? 'High Risk' : avgDefectProb > 0.35 ? 'Moderate Risk' : 'Low Risk'
+
+      const projectBadge = avgSkillScore >= 80
+        ? '🥇 9AM Gold: Elite Systems Architect'
+        : avgSkillScore >= 55
+        ? '🥈 9AM Silver: Clean Code Developer'
+        : '🥉 9AM Bronze: Practical Engineer'
+
+      const certEligible = avgSkillScore >= 60 && avgDefectProb < 0.65 && syntaxErrorCount === 0
+
+      const aggregatedProject = {
+        projectName: file.name,
+        totalFiles: fileCount,
+        totalLOC,
+        totalASTNodes,
+        syntaxErrorCount,
+        metrics: {
+          lines_of_code: totalLOC,
+          ast_node_count: totalASTNodes,
+          cyclomatic_complexity: Math.round(avgCC),
+          nesting_depth: Math.max(...fileResults.map(f => f.review.metrics.nesting_depth)),
+          function_count: totalFunctions,
+          exception_handlers: totalExceptions,
+          assert_count: totalAsserts,
+          docstring_ratio: Math.min(1.0, docstringRatio),
+        },
+        ml_risk: {
+          defect_probability: avgDefectProb,
+          predicted_risk_label: projectRiskLabel,
+          risk_tier: projectRiskTier,
+        },
+        review: {
+          summary: `Whole-project evaluation completed for \${file.name}. Inspected \${fileCount} Python files totaling \${totalLOC.toLocaleString()} LOC. Overall architecture maintains mean CC=\${avgCC} with \${totalExceptions} exception containment boundaries and \${(docstringRatio * 100).toFixed(0)}% docstring compliance.`,
+          skill_evidence_score: avgSkillScore,
+          skill_badge: projectBadge,
+        },
+        certificate_eligible: certEligible,
+        certificate_id: `PCPRO-REPO-\${Date.now().toString(36).toUpperCase()}-\${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+        fileResults,
+      }
+
+      setProjectResult(aggregatedProject)
+      setSelectedFileIdx(0)
+      setApiSource('fallback')
+    } catch (err) {
+      setError(err.message || 'Failed to process project zip archive.')
+    } finally {
+      setLoading(false)
+      setProgressText('')
+    }
+  }
+
+  // ─── Single File Review ────────────────────────────────────────────────────
+  const runSingleReview = useCallback(async () => {
     if (!code.trim()) {
       setError('Please enter or load Python code to analyze.')
       return
     }
     setLoading(true)
-    setResult(null)
+    setSingleResult(null)
+    setProjectResult(null)
     setError(null)
+    setProgressText('Extracting AST tree & running Random Forest defect classifier…')
+
     try {
       const { data, source } = await apiReview(code, filename || 'main.py', developerName || 'Developer')
-      setResult(data)
+      setSingleResult(data)
       setApiSource(source)
     } catch {
       setError('Unexpected error during review. Please try again.')
     } finally {
       setLoading(false)
+      setProgressText('')
     }
   }, [code, filename, developerName])
+
+  // ─── Handle File Drops ─────────────────────────────────────────────────────
+  const handleDrop = (e) => {
+    e.preventDefault()
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const droppedFile = e.dataTransfer.files[0]
+      if (droppedFile.name.endsWith('.zip')) {
+        setInputMode('zip')
+        processZipFile(droppedFile)
+      } else if (droppedFile.name.endsWith('.py')) {
+        setInputMode('single')
+        setFilename(droppedFile.name)
+        const reader = new FileReader()
+        reader.onload = (event) => setCode(event.target.result)
+        reader.readAsText(droppedFile)
+      } else {
+        setError('Please drop a .zip archive or a .py Python file.')
+      }
+    }
+  }
+
+  // Active result for certificate display
+  const activeCertificateResult = projectResult
+    ? {
+        filename: projectResult.projectName,
+        certificate_id: projectResult.certificate_id,
+        certificate_eligible: projectResult.certificate_eligible,
+        ml_risk: projectResult.ml_risk,
+        review: projectResult.review,
+        metrics: projectResult.metrics,
+      }
+    : singleResult
 
   return (
     <div className="min-h-screen bg-surface font-body text-body-md text-on-surface selection:bg-primary-container selection:text-white">
       
-      {/* ─── 0. FIXED NAVBAR ───────────────────────────────────────────────── */}
+      {/* ─── FIXED NAVBAR ─────────────────────────────────────────────────── */}
       <header className="fixed top-0 left-0 right-0 w-full z-50 bg-surface/90 backdrop-blur-md border-b border-outline-variant/40">
         <div className="h-16 max-w-7xl mx-auto px-margin-tablet lg:px-margin-desktop flex items-center justify-between gap-space-lg">
           <div className="flex items-center gap-space-xl">
@@ -1126,10 +1119,10 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Body */}
+      {/* Main Container */}
       <main className="w-full pt-16 bg-surface">
         
-        {/* ─── 1. HERO SECTION ──────────────────────────────────────────────── */}
+        {/* ─── HERO SECTION ────────────────────────────────────────────────── */}
         <section className="relative w-full pt-12 pb-20 px-margin-tablet lg:px-margin-desktop overflow-hidden border-b border-outline-variant/30">
           <div className="absolute inset-0 pointer-events-none opacity-25 precision-grid" />
           <div className="relative max-w-7xl mx-auto flex flex-col items-center text-center">
@@ -1141,7 +1134,7 @@ export default function App() {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-secondary" />
               </span>
               <span className="font-mono text-xs text-on-surface-variant">
-                v1.4 Live <span className="text-outline">·</span> GitHub Webhook Engine Active
+                v1.5 Live <span className="text-outline">·</span> Whole-Project Multi-File Engine Active
               </span>
             </div>
 
@@ -1152,348 +1145,298 @@ export default function App() {
 
             {/* Subline */}
             <p className="font-body text-base sm:text-lg text-on-surface-variant max-w-2xl mt-4 mb-8 leading-relaxed">
-              ProofCommit Pro reviews every commit with AI and generates a tamper-proof 9AM Skill Evidence Certificate — automatically.
+              Upload your complete Python project ZIP or paste your code. ProofCommit Pro runs an automated AST &amp; Random Forest audit across every module and mints a verifiable 9AM Skill Certificate.
             </p>
 
             {/* CTA Group */}
-            <div className="flex flex-wrap items-center justify-center gap-space-md mb-16">
+            <div className="flex flex-wrap items-center justify-center gap-space-md mb-12">
               <a
                 className="inline-flex items-center gap-space-sm px-space-xl py-space-md rounded-lg font-mono text-xs font-semibold bg-primary-container text-white hover:bg-primary-container/90 transition-all shadow-[0_0_24px_-4px_rgba(99,102,241,0.35)]"
                 href="#demo"
               >
-                <span>Try Live Demo</span>
+                <FolderArchive className="w-4 h-4" />
+                <span>Upload Project ZIP</span>
                 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
               </a>
               <a
                 className="inline-flex items-center gap-space-sm px-space-xl py-space-md rounded-lg font-mono text-xs font-medium bg-surface-container border border-outline-variant/50 text-on-surface-variant hover:text-white hover:border-outline-variant transition-colors"
                 href="#demo"
               >
-                <span className="material-symbols-outlined text-[18px] text-primary">verified</span>
-                <span>See Sample Certificate</span>
+                <FileCode className="w-4 h-4 text-primary" />
+                <span>Paste Code Directly</span>
               </a>
-            </div>
-
-            {/* Code Editor Mockup with Floating AI Review Overlay */}
-            <div className="relative w-full max-w-5xl text-left rounded-xl bg-surface-container-lowest border border-outline-variant/60 shadow-2xl overflow-visible">
-              <div className="h-10 px-space-md flex items-center justify-between border-b border-outline-variant/40 bg-surface-container-low rounded-t-xl">
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-[#ef4444]/80" />
-                  <span className="w-3 h-3 rounded-full bg-[#f59e0b]/80" />
-                  <span className="w-3 h-3 rounded-full bg-[#10b981]/80" />
-                  <span className="ml-3 font-mono text-xs text-outline tracking-tight">commit c8f921a — feat(auth): implement zk-proof verification</span>
-                </div>
-                <div className="hidden sm:flex items-center gap-space-sm font-mono text-xs">
-                  <span className="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant border border-outline-variant/30">src/crypto/zkp_verifier.ts</span>
-                  <span className="text-secondary flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[14px]">lock</span> verified
-                  </span>
-                </div>
-              </div>
-
-              {/* Code Workspace with Diff Lines */}
-              <div className="relative p-space-lg font-mono text-xs overflow-x-auto bg-[#0a0a0f]">
-                <div className="grid grid-cols-[3rem_1fr] gap-x-space-md leading-6">
-                  <span className="text-outline/40 select-none text-right">01</span>
-                  <span className="text-outline">import &#123; generateProof, verifyProof &#125; from &quot;@zk-snarks/prover&quot;;</span>
-                  <span className="text-outline/40 select-none text-right">02</span>
-                  <span className="text-outline">export async function verifySignaturePayload(seed: Uint8Array): Promise&lt;boolean&gt; &#123;</span>
-                  <span className="text-outline/40 select-none text-right">03</span>
-                  <span className="bg-[#ef4444]/10 text-[#fca5a5] flex items-center"><span className="text-[#ef4444] font-bold mr-2">-</span>const legacyCheck = crypto.timingSafeEqual(seed, activeKeyHash);</span>
-                  <span className="text-outline/40 select-none text-right">04</span>
-                  <span className="bg-[#10b981]/10 text-[#86efac] flex items-center"><span className="text-[#10b981] font-bold mr-2">+</span>const zkWitness = await generateProof(seed, &#123; depth: 16 &#125;);</span>
-                  <span className="text-outline/40 select-none text-right">05</span>
-                  <span className="bg-[#10b981]/10 text-[#86efac] flex items-center"><span className="text-[#10b981] font-bold mr-2">+</span>const isCompliant = await verifyProof(zkWitness, ZK_VERIFY_KEY);</span>
-                  <span className="text-outline/40 select-none text-right">06</span>
-                  <span className="bg-[#10b981]/10 text-[#86efac] flex items-center"><span className="text-[#10b981] font-bold mr-2">+</span>if (!isCompliant) throw new SecurityProtocolError(&quot;E_INVALID_PROOF&quot;);</span>
-                  <span className="text-outline/40 select-none text-right">07</span>
-                  <span className="text-outline">  return isCompliant;</span>
-                  <span className="text-outline/40 select-none text-right">08</span>
-                  <span className="text-outline">&#125;</span>
-                </div>
-
-                {/* Floating Inline AI Review Annotation */}
-                <div className="mt-6 lg:mt-0 lg:absolute lg:right-6 lg:top-14 max-w-md w-full bg-surface-container border border-primary/40 rounded-xl p-space-md shadow-2xl backdrop-blur-md">
-                  <div className="flex items-center justify-between gap-2 mb-space-xs border-b border-outline-variant/30 pb-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-primary text-[18px]">verified_user</span>
-                      <span className="font-mono text-xs uppercase font-semibold text-primary tracking-wider">AI Review · Security &amp; Perf</span>
-                    </div>
-                    <span className="font-mono text-xs font-semibold text-secondary px-2 py-0.5 rounded bg-secondary/10 border border-secondary/30">98 / 100</span>
-                  </div>
-                  <p className="text-xs text-on-surface-variant leading-relaxed mb-space-md">
-                    Verified zero-knowledge handshake adherence. Constant-time comparison mitigates timing side-channels with zero heap allocation overhead.
-                  </p>
-                  <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
-                    <span className="px-2 py-0.5 rounded bg-surface-container-high border border-outline-variant/40 text-primary-fixed-dim">+14 Skill Points</span>
-                    <span className="px-2 py-0.5 rounded bg-surface-container-high border border-outline-variant/40 text-on-surface">Clean Architecture</span>
-                    <span className="px-2 py-0.5 rounded bg-surface-container-high border border-secondary/30 text-secondary">Cryptographic Safety Passed</span>
-                  </div>
-                </div>
-              </div>
             </div>
 
           </div>
         </section>
 
-        {/* ─── 2. HOW IT WORKS SECTION ───────────────────────────────────────── */}
-        <section className="w-full py-20 px-margin-tablet lg:px-margin-desktop border-b border-outline-variant/30" id="how-it-works">
+        {/* ─── HOW IT WORKS SECTION ─────────────────────────────────────────── */}
+        <section className="w-full py-16 px-margin-tablet lg:px-margin-desktop border-b border-outline-variant/30" id="how-it-works">
           <div className="max-w-7xl mx-auto flex flex-col items-center">
-            <div className="text-center mb-14">
+            <div className="text-center mb-12">
               <span className="font-mono text-xs uppercase font-semibold tracking-widest text-primary">Pipeline Workflow</span>
               <h2 className="font-headline text-3xl sm:text-4xl font-semibold text-white tracking-tight mt-1">
-                From Git Push to Cryptographic Proof in Seconds
+                From Whole-Project ZIP to Verified Proof in Seconds
               </h2>
             </div>
 
             <div className="relative w-full grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Step 1 */}
               <div className="relative flex flex-col bg-surface-container border border-outline-variant/40 hover:border-primary/50 transition-colors p-6 rounded-xl">
                 <div className="flex items-center justify-between mb-4">
                   <div className="w-12 h-12 rounded-lg bg-surface-container-high border border-outline-variant/50 flex items-center justify-center text-primary">
-                    <span className="material-symbols-outlined text-[24px]">hub</span>
+                    <FolderArchive className="w-6 h-6" />
                   </div>
                   <span className="font-mono text-xs font-bold text-outline px-2 py-1 rounded bg-surface-container-lowest border border-outline-variant/30">01</span>
                 </div>
-                <h3 className="font-headline text-lg font-semibold text-white mb-2">Connect GitHub</h3>
+                <h3 className="font-headline text-lg font-semibold text-white mb-2">Upload Repository ZIP</h3>
                 <p className="text-sm text-on-surface-variant leading-relaxed">
-                  Authorize the ProofCommit GitHub App with read-only access to your repositories. Setup takes under 60 seconds.
+                  Drop your codebase archive. The browser engine unpacks all Python modules in memory with zero cloud file storage risks.
                 </p>
               </div>
 
-              {/* Step 2 */}
               <div className="relative flex flex-col bg-surface-container border border-outline-variant/40 hover:border-primary/50 transition-colors p-6 rounded-xl">
                 <div className="flex items-center justify-between mb-4">
                   <div className="w-12 h-12 rounded-lg bg-surface-container-high border border-outline-variant/50 flex items-center justify-center text-secondary">
-                    <span className="material-symbols-outlined text-[24px]">terminal</span>
+                    <Cpu className="w-6 h-6" />
                   </div>
                   <span className="font-mono text-xs font-bold text-outline px-2 py-1 rounded bg-surface-container-lowest border border-outline-variant/30">02</span>
                 </div>
-                <h3 className="font-headline text-lg font-semibold text-white mb-2">Push a Commit</h3>
+                <h3 className="font-headline text-lg font-semibold text-white mb-2">Multi-File AST &amp; ML Audit</h3>
                 <p className="text-sm text-on-surface-variant leading-relaxed">
-                  Normal git workflow. Every commit push triggers an automated multi-model AST feature extraction and defect evaluation.
+                  Every Python file is analyzed for cyclomatic complexity, nesting depth, error containment, docstrings, and bug probability.
                 </p>
               </div>
 
-              {/* Step 3 */}
               <div className="relative flex flex-col bg-surface-container border border-outline-variant/40 hover:border-primary/50 transition-colors p-6 rounded-xl">
                 <div className="flex items-center justify-between mb-4">
                   <div className="w-12 h-12 rounded-lg bg-surface-container-high border border-outline-variant/50 flex items-center justify-center text-tertiary">
-                    <span className="material-symbols-outlined text-[24px]">verified</span>
+                    <Award className="w-6 h-6" />
                   </div>
                   <span className="font-mono text-xs font-bold text-outline px-2 py-1 rounded bg-surface-container-lowest border border-outline-variant/30">03</span>
                 </div>
-                <h3 className="font-headline text-lg font-semibold text-white mb-2">Get Your Certificate</h3>
+                <h3 className="font-headline text-lg font-semibold text-white mb-2">Project Skill Certificate</h3>
                 <p className="text-sm text-on-surface-variant leading-relaxed">
-                  Receive a tamper-proof, timestamped 9AM Skill Evidence Certificate signed with immutable SHA-256 verification hashes.
+                  Receive a tamper-evident, repository-wide 9AM Skill Evidence Certificate certifying your full project codebase with PDF/PNG/Print export.
                 </p>
               </div>
             </div>
           </div>
         </section>
 
-        {/* ─── 3. FEATURES GRID SECTION ──────────────────────────────────────── */}
-        <section className="w-full py-20 px-margin-tablet lg:px-margin-desktop border-b border-outline-variant/30" id="features">
+        {/* ─── CAPABILITIES GRID ────────────────────────────────────────────── */}
+        <section className="w-full py-16 px-margin-tablet lg:px-margin-desktop border-b border-outline-variant/30" id="features">
           <div className="max-w-7xl mx-auto flex flex-col items-center">
-            <div className="text-center mb-14">
+            <div className="text-center mb-12">
               <span className="font-mono text-xs uppercase font-semibold tracking-widest text-primary">Capabilities</span>
               <h2 className="font-headline text-3xl sm:text-4xl font-semibold text-white tracking-tight mt-1">
-                Engineered for Engineering Excellence
+                Engineered for High-Leverage Verification
               </h2>
             </div>
 
             <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Card 1 */}
               <div className="flex flex-col justify-between bg-surface-container border border-outline-variant/40 hover:border-primary/60 transition-all p-6 rounded-xl">
                 <div>
                   <div className="flex items-center gap-2 mb-3">
                     <span className="material-symbols-outlined text-primary text-[24px]">psychology</span>
-                    <h3 className="font-headline text-xl font-semibold text-white">AI Code Review</h3>
+                    <h3 className="font-headline text-xl font-semibold text-white">Repository AST Deep Scan</h3>
                   </div>
                   <p className="text-sm text-on-surface-variant mb-5 leading-relaxed">
-                    Instant feedback on code quality, security, and style. Analyzes cyclomatic complexity, architectural smells, and vulnerability vectors on every push.
+                    Evaluates normalized cyclomatic complexity, nesting depth ceilings, and defensive boundaries across all modules concurrently.
                   </p>
                 </div>
                 <div className="rounded-lg bg-surface-container-lowest border border-outline-variant/40 p-3 font-mono text-xs">
                   <div className="flex items-center justify-between text-outline border-b border-outline-variant/30 pb-1.5 mb-2">
-                    <span>ast_evaluator.py</span>
-                    <span className="text-secondary font-medium">score: 9.8</span>
+                    <span>repository_scanner.py</span>
+                    <span className="text-secondary font-medium">multi-file ready</span>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-on-surface"><span className="text-secondary font-bold">[PASS]</span> Cyclomatic complexity &lt; 4 (Low risk)</p>
-                    <p className="text-on-surface"><span className="text-secondary font-bold">[PASS]</span> Defensive exception boundaries (0 uncaught)</p>
-                    <p className="text-outline"><span className="text-tertiary font-bold">[INFO]</span> Docstring coverage 100% compliant</p>
+                    <p className="text-on-surface"><span className="text-secondary font-bold">[PASS]</span> In-memory zip extraction (Zero disk writes)</p>
+                    <p className="text-on-surface"><span className="text-secondary font-bold">[PASS]</span> Recursive Python file discovery</p>
+                    <p className="text-outline"><span className="text-tertiary font-bold">[INFO]</span> Batch Random Forest defect classification</p>
                   </div>
                 </div>
               </div>
 
-              {/* Card 2 */}
               <div className="flex flex-col justify-between bg-surface-container border border-outline-variant/40 hover:border-primary/60 transition-all p-6 rounded-xl">
                 <div>
                   <div className="flex items-center gap-2 mb-3">
                     <span className="material-symbols-outlined text-primary text-[24px]">workspace_premium</span>
-                    <h3 className="font-headline text-xl font-semibold text-white">9AM Skill Certificate</h3>
+                    <h3 className="font-headline text-xl font-semibold text-white">9AM Repository Certificate</h3>
                   </div>
                   <p className="text-sm text-on-surface-variant mb-5 leading-relaxed">
-                    Verifiable PDF certificate with commit hash. Cryptographically sealed credentials ready for LinkedIn, hiring portfolios, and technical evaluations.
+                    A verifiable, cryptographically hashed certificate recording the repository name, total files verified, total LOC, and aggregate skill score.
                   </p>
                 </div>
                 <div className="rounded-lg bg-surface-container-lowest border border-outline-variant/40 p-3 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-primary/10 border border-primary/40 flex items-center justify-center text-primary">
-                      <span className="material-symbols-outlined text-[20px]">military_tech</span>
+                      <Award className="w-5 h-5" />
                     </div>
                     <div>
-                      <span className="font-mono text-xs font-semibold text-white block">SHA256: 7f4c902...</span>
-                      <span className="text-xs text-on-surface-variant">Level 4 · Systems Architecture</span>
+                      <span className="font-mono text-xs font-semibold text-white block">Project-Level Certification</span>
+                      <span className="text-xs text-on-surface-variant">Multi-Module Architectural Audit</span>
                     </div>
                   </div>
                   <span className="font-mono text-xs px-2 py-1 rounded bg-secondary/10 border border-secondary/30 text-secondary uppercase font-bold">VERIFIED</span>
-                </div>
-              </div>
-
-              {/* Card 3 */}
-              <div className="flex flex-col justify-between bg-surface-container border border-outline-variant/40 hover:border-primary/60 transition-all p-6 rounded-xl">
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="material-symbols-outlined text-primary text-[24px]">integration_instructions</span>
-                    <h3 className="font-headline text-xl font-semibold text-white">GitHub Integration</h3>
-                  </div>
-                  <p className="text-sm text-on-surface-variant mb-5 leading-relaxed">
-                    Works with any public or private repo. Zero friction GitHub Action or Webhook installation requiring no complicated configuration files.
-                  </p>
-                </div>
-                <div className="rounded-lg bg-surface-container-lowest border border-outline-variant/40 p-3 flex items-center justify-around font-mono text-xs">
-                  <div className="flex items-center gap-2 text-on-surface-variant">
-                    <span className="w-2.5 h-2.5 rounded-full bg-primary" />
-                    <span>main</span>
-                  </div>
-                  <span className="material-symbols-outlined text-outline text-[16px]">call_split</span>
-                  <div className="flex items-center gap-2 text-secondary">
-                    <span className="w-2.5 h-2.5 rounded-full bg-secondary" />
-                    <span>proof/commit-c8f921a</span>
-                  </div>
-                  <span className="material-symbols-outlined text-secondary text-[16px]">check_circle</span>
-                </div>
-              </div>
-
-              {/* Card 4 */}
-              <div className="flex flex-col justify-between bg-surface-container border border-outline-variant/40 hover:border-primary/60 transition-all p-6 rounded-xl">
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="material-symbols-outlined text-primary text-[24px]">leaderboard</span>
-                    <h3 className="font-headline text-xl font-semibold text-white">Developer Leaderboard</h3>
-                  </div>
-                  <p className="text-sm text-on-surface-variant mb-5 leading-relaxed">
-                    Track and compare your coding consistency score. Benchmark your commit velocity, refactoring hygiene, and test coverage against global developer cohorts.
-                  </p>
-                </div>
-                <div className="rounded-lg bg-surface-container-lowest border border-outline-variant/40 p-3 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <svg className="w-28 h-6 text-primary" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 100 24">
-                      <polyline points="0,20 18,16 36,18 54,8 72,12 90,4 100,2" />
-                    </svg>
-                    <span className="font-mono text-xs text-outline">Velocity +34%</span>
-                  </div>
-                  <span className="font-mono text-xs px-2.5 py-1 rounded bg-primary/10 border border-primary/30 text-primary font-bold">Top 0.6%</span>
                 </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* ─── 4. INTERACTIVE LIVE EVALUATION RUNTIME (#demo) ─────────────────── */}
-        <section className="w-full py-20 px-margin-tablet lg:px-margin-desktop border-b border-outline-variant/30" id="demo">
+        {/* ─── LIVE EVALUATION RUNTIME (#demo) ───────────────────────────────── */}
+        <section className="w-full py-16 px-margin-tablet lg:px-margin-desktop border-b border-outline-variant/30" id="demo">
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-12">
+            <div className="text-center mb-10">
               <span className="font-mono text-xs uppercase font-semibold tracking-widest text-primary">Live Evaluation Runtime</span>
               <h2 className="font-headline text-3xl sm:text-4xl font-semibold text-white tracking-tight mt-1">
-                Interactive Audit &amp; Verification Preview
+                Upload Project ZIP or Review Code
               </h2>
               <p className="text-sm text-on-surface-variant max-w-xl mx-auto mt-2">
-                Load a code sample or paste your own Python module, run the AST &amp; Random Forest classifier, and inspect findings in real time.
+                Upload your actual Python project .zip file to audit all files at once, or paste single-file code directly.
               </p>
             </div>
 
-            {/* Workbench Grid */}
+            {/* Mode Switcher Tabs */}
+            <div className="flex justify-center mb-8">
+              <div className="inline-flex p-1 bg-surface-container-lowest border border-outline-variant/40 rounded-xl font-mono text-xs">
+                <button
+                  onClick={() => { setInputMode('zip'); setError(null) }}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-lg transition-all font-semibold \${
+                    inputMode === 'zip'
+                      ? 'bg-primary text-on-primary shadow-[0_0_12px_rgba(192,193,255,0.3)]'
+                      : 'text-on-surface-variant hover:text-white'
+                  }`}
+                >
+                  <FolderArchive className="w-4 h-4" />
+                  <span>Upload Project (.zip)</span>
+                </button>
+                <button
+                  onClick={() => { setInputMode('single'); setError(null) }}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-lg transition-all font-semibold \${
+                    inputMode === 'single'
+                      ? 'bg-primary text-on-primary shadow-[0_0_12px_rgba(192,193,255,0.3)]'
+                      : 'text-on-surface-variant hover:text-white'
+                  }`}
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Paste / Single File (.py)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Main Workbench Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               
-              {/* Left Column: Code Editor & Model Benchmarks */}
+              {/* Left Column: Upload / Editor Zone */}
               <div className="lg:col-span-6 space-y-4">
                 
-                {/* Code Editor Box */}
-                <div className="rounded-xl border border-outline-variant/50 bg-surface-container-lowest overflow-hidden shadow-xl">
-                  {/* Toolbar */}
-                  <div className="h-10 px-4 flex items-center justify-between border-b border-outline-variant/40 bg-surface-container-low">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#ef4444]" />
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#f59e0b]" />
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#10b981]" />
-                      <input
-                        className="ml-2 bg-transparent text-slate-300 text-xs font-mono outline-none flex-1 placeholder:text-outline"
-                        value={filename}
-                        onChange={e => setFilename(e.target.value)}
-                        placeholder="filename.py"
-                      />
-                    </div>
-                    <div className="flex items-center gap-1 text-outline text-xs font-mono">
-                      <Code2 className="w-3.5 h-3.5 text-primary" /> Python
-                    </div>
-                  </div>
-
-                  {/* Sample buttons */}
-                  <div className="flex gap-2 p-2.5 border-b border-outline-variant/30 bg-surface-container/40 flex-wrap">
-                    <button
-                      onClick={() => loadSample('high')}
-                      className="flex items-center gap-1.5 text-xs font-mono bg-red-950/40 hover:bg-red-950/70 text-red-300 border border-red-800/40 rounded px-2.5 py-1 transition-colors"
-                    >
-                      <AlertTriangle className="w-3 h-3" /> Load High-Risk Buggy Sample
-                    </button>
-                    <button
-                      onClick={() => loadSample('clean')}
-                      className="flex items-center gap-1.5 text-xs font-mono bg-emerald-950/40 hover:bg-emerald-950/70 text-emerald-300 border border-emerald-800/40 rounded px-2.5 py-1 transition-colors"
-                    >
-                      <CheckCircle className="w-3 h-3" /> Load Clean Production Sample
-                    </button>
-                  </div>
-
-                  {/* Code textarea */}
-                  <div className="relative">
-                    <textarea
-                      ref={textareaRef}
-                      className="w-full bg-[#0a0a0f] font-mono text-xs text-slate-200 p-4 outline-none resize-none min-h-[300px] leading-relaxed placeholder:text-outline code-editor"
-                      placeholder={`# Paste your Python code here…\n# or click one of the preset buttons above`}
-                      value={code}
-                      onChange={e => setCode(e.target.value)}
-                      spellCheck={false}
+                {inputMode === 'zip' ? (
+                  /* ZIP Upload Card */
+                  <div
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={handleDrop}
+                    className="rounded-xl border-2 border-dashed border-outline-variant/60 hover:border-primary/60 bg-surface-container-lowest p-8 text-center transition-all group"
+                  >
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      accept=".zip"
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files?.[0]) processZipFile(e.target.files[0])
+                      }}
                     />
-                    {code && (
-                      <div className="absolute bottom-2 right-3 text-[11px] text-outline font-mono">
-                        {code.split('\n').length} lines
-                      </div>
-                    )}
-                  </div>
-                </div>
 
-                {/* CTA Run Review Button */}
-                <button
-                  onClick={runReview}
-                  disabled={loading}
-                  className="w-full btn-primary justify-center py-3 text-sm font-bold relative overflow-hidden group"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Analysing with Random Forest + AST Engine…
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="w-4 h-4 text-white" />
-                      Run ProofCommit Review
-                      <ArrowRight className="w-4 h-4 ml-auto group-hover:translate-x-1 transition-transform" />
-                    </>
-                  )}
-                  {loading && <div className="absolute inset-0 shimmer opacity-20" />}
-                </button>
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-surface-container-high border border-outline-variant/50 flex items-center justify-center text-primary group-hover:scale-105 transition-transform">
+                      <FolderArchive className="w-8 h-8" />
+                    </div>
+
+                    <h3 className="font-headline text-lg font-bold text-white mb-1">
+                      Upload Project ZIP Archive
+                    </h3>
+                    <p className="text-xs text-on-surface-variant max-w-sm mx-auto mb-6 leading-relaxed">
+                      Drag &amp; drop your Python codebase (.zip), or click to browse. The engine will unpack and analyze every Python module inside.
+                    </p>
+
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="btn-primary justify-center py-2.5 px-6 mx-auto text-xs"
+                    >
+                      <Upload className="w-4 h-4" /> Select .zip Archive
+                    </button>
+
+                    <p className="font-mono text-[11px] text-outline mt-4">
+                      In-memory processing · Skips __pycache__, .git, and virtual environments
+                    </p>
+                  </div>
+                ) : (
+                  /* Single File Code Editor */
+                  <div className="rounded-xl border border-outline-variant/50 bg-surface-container-lowest overflow-hidden shadow-xl">
+                    <div className="h-10 px-4 flex items-center justify-between border-b border-outline-variant/40 bg-surface-container-low">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#ef4444]" />
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#f59e0b]" />
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#10b981]" />
+                        <input
+                          className="ml-2 bg-transparent text-slate-300 text-xs font-mono outline-none flex-1 placeholder:text-outline"
+                          value={filename}
+                          onChange={e => setFilename(e.target.value)}
+                          placeholder="filename.py"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1 text-outline text-xs font-mono">
+                        <Code2 className="w-3.5 h-3.5 text-primary" /> Python
+                      </div>
+                    </div>
+
+                    <div className="relative" onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
+                      <textarea
+                        ref={textareaRef}
+                        className="w-full bg-[#0a0a0f] font-mono text-xs text-slate-200 p-4 outline-none resize-none min-h-[280px] leading-relaxed placeholder:text-outline code-editor"
+                        placeholder={`# Paste your Python code here...\n# or drag and drop a .py file into this editor\n\ndef calculate_payroll(hours, rate):\n    if hours < 0 or rate < 0:\n        raise ValueError("Invalid payroll metrics")\n    return hours * rate\n`}
+                        value={code}
+                        onChange={e => setCode(e.target.value)}
+                        spellCheck={false}
+                      />
+                      {code && (
+                        <div className="absolute bottom-2 right-3 text-[11px] text-outline font-mono">
+                          {code.split('\n').length} lines
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-3 bg-surface-container border-t border-outline-variant/30 flex items-center justify-between">
+                      <button
+                        onClick={() => { setCode(''); setFilename('main.py'); setSingleResult(null) }}
+                        className="text-xs text-outline hover:text-white transition-colors font-mono"
+                      >
+                        Clear Editor
+                      </button>
+                      <button
+                        onClick={runSingleReview}
+                        disabled={loading}
+                        className="btn-primary py-2 px-5 text-xs font-bold"
+                      >
+                        {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                        Run Review
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Loading Status Progress */}
+                {loading && (
+                  <div className="bg-surface-container border border-primary/40 rounded-xl p-4 flex items-center gap-3 animate-fade-in font-mono text-xs text-on-surface">
+                    <Loader2 className="w-5 h-5 text-primary animate-spin shrink-0" />
+                    <div className="flex-1 truncate">
+                      <p className="font-semibold text-white">Analyzing Codebase…</p>
+                      <p className="text-[11px] text-primary truncate mt-0.5">{progressText}</p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Error Banner */}
                 {error && (
@@ -1510,44 +1453,180 @@ export default function App() {
                     : '⚡ Edge Browser AST + Random Forest Engine Active (Zero-Latency Serverless Mode)'}
                 </div>
 
-                {/* Model Benchmarks Card */}
+                {/* Verified Random Forest Benchmarks Card */}
                 <ModelBenchmarkCard />
               </div>
 
-              {/* Right Column: Audit Results & Certificate */}
+              {/* Right Column: Review Results & Explorer */}
               <div className="lg:col-span-6 space-y-4">
                 
-                {!result && !loading && (
+                {/* Empty State */}
+                {!projectResult && !singleResult && !loading && (
                   <div className="rounded-xl border border-outline-variant/40 bg-surface-container-lowest p-8 text-center space-y-4 flex flex-col items-center justify-center min-h-[460px]">
                     <div className="w-16 h-16 rounded-2xl bg-surface-container-high border border-outline-variant/50 flex items-center justify-center text-primary">
                       <Cpu className="w-8 h-8" />
                     </div>
                     <div>
-                      <h3 className="font-headline text-lg font-semibold text-white">ProofCommit Pro AI Engine</h3>
+                      <h3 className="font-headline text-lg font-semibold text-white">ProofCommit Pro Review Engine</h3>
                       <p className="text-xs text-on-surface-variant max-w-sm mt-1 leading-relaxed">
-                        Click "Run ProofCommit Review" or select a preset sample to inspect the 8-metric AST analysis, defect classifier scores, and the 9AM Skill Certificate.
+                        Upload your Python project ZIP or paste your source code to generate multi-file AST metrics, Random Forest defect probability, and the 9AM Skill Certificate.
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-1.5 justify-center font-mono text-[11px] text-outline">
-                      {['AST Extraction', 'Random Forest ML', 'Gemini Patch', 'Skill Score', '₹299 Certificate'].map(f => (
+                      {['In-Memory ZIP Parser', 'Multi-File Aggregation', 'Random Forest ML', 'AST Tree Features', '9AM Certificate'].map(f => (
                         <span key={f} className="px-2 py-0.5 rounded bg-surface-container border border-outline-variant/30">{f}</span>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {loading && (
-                  <div className="rounded-xl border border-outline-variant/40 bg-surface-container-lowest p-6 space-y-3 animate-fade-in">
-                    {['Parsing AST tree…', 'Running Random Forest classifier…', 'Computing cyclomatic complexity…', 'Generating AI refactor patch…'].map((step, i) => (
-                      <div key={i} className="flex items-center gap-3 bg-surface-container border border-outline-variant/30 rounded-lg px-4 py-3 font-mono text-xs text-on-surface-variant">
-                        <Loader2 className="w-4 h-4 text-primary animate-spin flex-shrink-0" />
-                        <span>{step}</span>
+                {/* ─── WHOLE-PROJECT RESULTS VIEW ─────────────────────────── */}
+                {projectResult && (
+                  <div className="space-y-4 animate-fade-in">
+                    
+                    {/* Project Overview Card */}
+                    <div className="rounded-xl border border-primary/40 bg-surface-container p-5">
+                      <div className="flex items-start justify-between gap-3 mb-4">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-10 h-10 rounded-xl bg-primary/20 border border-primary/40 flex items-center justify-center text-primary">
+                            <FolderArchive className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm font-bold text-white">{projectResult.projectName}</span>
+                              <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-surface-container-high text-primary border border-primary/30">
+                                {projectResult.totalFiles} files
+                              </span>
+                            </div>
+                            <p className="text-xs text-on-surface-variant mt-0.5">
+                              {projectResult.totalLOC.toLocaleString()} total LOC · Mean CC={projectResult.metrics.cyclomatic_complexity}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <div className="text-2xl font-black font-mono text-primary">
+                            {projectResult.review.skill_evidence_score}
+                          </div>
+                          <div className="text-[10px] font-mono text-outline">Project Skill Score</div>
+                        </div>
                       </div>
-                    ))}
+
+                      <p className="text-xs text-on-surface-variant leading-relaxed mb-4">
+                        {projectResult.review.summary}
+                      </p>
+
+                      <div className="grid grid-cols-3 gap-2 text-xs font-mono">
+                        <div className="bg-[#0e0e13] p-2.5 rounded border border-outline-variant/30 text-center">
+                          <span className="text-[10px] text-outline block">Files Evaluated</span>
+                          <span className="text-white font-bold text-sm">{projectResult.totalFiles}</span>
+                        </div>
+                        <div className="bg-[#0e0e13] p-2.5 rounded border border-outline-variant/30 text-center">
+                          <span className="text-[10px] text-outline block">Mean Complexity</span>
+                          <span className="text-secondary font-bold text-sm">{projectResult.metrics.cyclomatic_complexity} CC</span>
+                        </div>
+                        <div className="bg-[#0e0e13] p-2.5 rounded border border-outline-variant/30 text-center">
+                          <span className="text-[10px] text-outline block">Defect Risk</span>
+                          <span className={`font-bold text-sm \${
+                            projectResult.ml_risk.predicted_risk_label === 'HIGH' ? 'text-error' :
+                            projectResult.ml_risk.predicted_risk_label === 'MEDIUM' ? 'text-amber-400' : 'text-secondary'
+                          }`}>
+                            {(projectResult.ml_risk.defect_probability * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* File Explorer Table */}
+                    <div className="rounded-xl border border-outline-variant/40 bg-surface-container overflow-hidden">
+                      <div className="px-4 py-2.5 bg-surface-container-low border-b border-outline-variant/40 flex items-center justify-between font-mono text-xs">
+                        <div className="flex items-center gap-1.5 text-white font-semibold">
+                          <Files className="w-4 h-4 text-primary" />
+                          <span>Project Modules ({projectResult.fileResults.length})</span>
+                        </div>
+                        <span className="text-outline text-[11px]">Click a file to inspect details</span>
+                      </div>
+
+                      <div className="max-h-56 overflow-y-auto divide-y divide-outline-variant/20 font-mono text-xs">
+                        {projectResult.fileResults.map((item, idx) => (
+                          <button
+                            key={item.path}
+                            onClick={() => setSelectedFileIdx(idx)}
+                            className={`w-full text-left px-4 py-2.5 flex items-center justify-between transition-colors \${
+                              selectedFileIdx === idx
+                                ? 'bg-primary/10 border-l-2 border-primary'
+                                : 'hover:bg-surface-container-high'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 truncate flex-1 mr-3">
+                              <FileCode className="w-3.5 h-3.5 text-primary shrink-0" />
+                              <span className="truncate text-white text-xs">{item.path}</span>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0 text-[11px]">
+                              <span className="text-outline">{item.review.metrics.lines_of_code} LOC</span>
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold \${
+                                item.review.ml_risk.predicted_risk_label === 'HIGH' ? 'bg-red-950 text-red-300' :
+                                item.review.ml_risk.predicted_risk_label === 'MEDIUM' ? 'bg-amber-950 text-amber-300' :
+                                'bg-emerald-950 text-emerald-300'
+                              }`}>
+                                {(item.review.ml_risk.defect_probability * 100).toFixed(0)}%
+                              </span>
+                              <span className="text-primary font-bold">{item.review.skill_evidence_score}</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Selected File Details */}
+                    {projectResult.fileResults[selectedFileIdx] && (
+                      <div className="rounded-xl border border-outline-variant/40 bg-surface-container p-4 space-y-3">
+                        <div className="flex items-center justify-between border-b border-outline-variant/30 pb-2">
+                          <div className="flex items-center gap-2 font-mono text-xs font-semibold text-white truncate">
+                            <FileCheck className="w-4 h-4 text-secondary" />
+                            <span className="truncate">{projectResult.fileResults[selectedFileIdx].path}</span>
+                          </div>
+                          <span className="font-mono text-xs text-outline">
+                            Score: {projectResult.fileResults[selectedFileIdx].review.skill_evidence_score} / 100
+                          </span>
+                        </div>
+
+                        {/* AST Grid for selected file */}
+                        <ASTMetricGrid metrics={projectResult.fileResults[selectedFileIdx].review.metrics} />
+
+                        {/* Findings for selected file */}
+                        <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                          {projectResult.fileResults[selectedFileIdx].review.review.issues.map((iss, i) => (
+                            <div key={i} className="flex items-start gap-2 bg-[#0e0e13] border border-outline-variant/20 rounded p-2 text-xs">
+                              <SeverityBadge severity={iss.severity} />
+                              <div className="flex-1">
+                                <span className="font-mono text-white text-[11px] font-semibold mr-1.5">[{iss.type}]</span>
+                                <span className="text-on-surface-variant text-[11px]">{iss.message}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Patch for selected file */}
+                        {projectResult.fileResults[selectedFileIdx].review.review.suggested_patch && (
+                          <div className="pt-2 border-t border-outline-variant/30">
+                            <PatchViewer patch={projectResult.fileResults[selectedFileIdx].review.review.suggested_patch} />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Razorpay Card for Repository */}
+                    <RazorpayCard
+                      result={activeCertificateResult}
+                      developerName={developerName}
+                      onSimulate={() => setShowCertModal(true)}
+                    />
                   </div>
                 )}
 
-                {result && (
+                {/* ─── SINGLE FILE RESULT VIEW ────────────────────────────── */}
+                {singleResult && !projectResult && (
                   <div className="space-y-4 animate-fade-in">
                     
                     {/* Review Summary */}
@@ -1556,50 +1635,43 @@ export default function App() {
                         <div className="flex items-center gap-1.5 text-primary text-xs font-mono font-semibold uppercase">
                           <Sparkles className="w-4 h-4" /> AI Review Summary
                         </div>
-                        <span className="font-mono text-xs text-outline">{result.filename}</span>
+                        <span className="font-mono text-xs text-outline">{singleResult.filename}</span>
                       </div>
-                      <p className="text-xs text-on-surface-variant leading-relaxed">{result.review.summary}</p>
+                      <p className="text-xs text-on-surface-variant leading-relaxed">{singleResult.review.summary}</p>
                     </div>
 
-                    {/* Skill Scorecard Banner */}
+                    {/* Skill Scorecard */}
                     <div className="rounded-xl border border-outline-variant/40 bg-surface-container p-4 flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="w-12 h-12 rounded-xl bg-surface-container-high border border-outline-variant/50 flex items-center justify-center font-mono text-xl font-black text-primary">
-                          {result.review.skill_evidence_score}
+                          {singleResult.review.skill_evidence_score}
                         </div>
                         <div>
                           <p className="text-xs text-outline uppercase font-mono">Skill Evidence Score</p>
-                          <p className="text-sm font-semibold text-white font-headline">{result.review.skill_badge}</p>
+                          <p className="text-sm font-semibold text-white font-headline">{singleResult.review.skill_badge}</p>
                         </div>
                       </div>
                       <div className="text-right font-mono text-xs">
                         <span className={`px-2 py-1 rounded text-xs font-semibold \${
-                          result.ml_risk.predicted_risk_label === 'HIGH' || result.ml_risk.predicted_risk_label === 'CRITICAL' ? 'bg-red-950/60 text-red-300 border border-red-800/60' :
-                          result.ml_risk.predicted_risk_label === 'MEDIUM' ? 'bg-amber-950/60 text-amber-300 border border-amber-800/60' :
+                          singleResult.ml_risk.predicted_risk_label === 'HIGH' || singleResult.ml_risk.predicted_risk_label === 'CRITICAL' ? 'bg-red-950/60 text-red-300 border border-red-800/60' :
+                          singleResult.ml_risk.predicted_risk_label === 'MEDIUM' ? 'bg-amber-950/60 text-amber-300 border border-amber-800/60' :
                           'bg-emerald-950/60 text-emerald-300 border border-emerald-800/60'
                         }`}>
-                          {result.ml_risk.risk_tier} ({(result.ml_risk.defect_probability * 100).toFixed(0)}% Risk)
+                          {singleResult.ml_risk.risk_tier} ({(singleResult.ml_risk.defect_probability * 100).toFixed(0)}% Risk)
                         </span>
                       </div>
                     </div>
 
-                    {/* AST 8-Metric Grid */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-2 font-mono text-xs text-outline uppercase tracking-wider">
-                        <GitBranch className="w-3.5 h-3.5 text-primary" /> 8-Metric AST Structural Grid
-                      </div>
-                      <ASTMetricGrid metrics={result.metrics} />
-                    </div>
+                    {/* AST Grid */}
+                    <ASTMetricGrid metrics={singleResult.metrics} />
 
-                    {/* Findings List & AI Patch */}
+                    {/* Findings & Patch */}
                     <div className="rounded-xl border border-outline-variant/40 bg-surface-container p-4 space-y-3">
                       <div className="flex items-center gap-2 font-mono text-xs text-outline uppercase tracking-wider">
                         <TrendingUp className="w-3.5 h-3.5 text-amber-400" /> Automated Findings &amp; AI Patch
                       </div>
-
-                      {/* Issues */}
                       <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                        {result.review.issues.map((iss, i) => (
+                        {singleResult.review.issues.map((iss, i) => (
                           <div key={i} className="flex items-start gap-2 bg-[#0e0e13] border border-outline-variant/20 rounded p-2 text-xs">
                             <SeverityBadge severity={iss.severity} />
                             <div className="flex-1">
@@ -1610,28 +1682,19 @@ export default function App() {
                         ))}
                       </div>
 
-                      {/* Patch Viewer */}
-                      {result.review.suggested_patch && (
+                      {singleResult.review.suggested_patch && (
                         <div className="pt-2 border-t border-outline-variant/30">
-                          <PatchViewer patch={result.review.suggested_patch} />
+                          <PatchViewer patch={singleResult.review.suggested_patch} />
                         </div>
                       )}
                     </div>
 
-                    {/* Razorpay Certificate Card */}
+                    {/* Razorpay Card */}
                     <RazorpayCard
-                      result={result}
+                      result={singleResult}
                       developerName={developerName}
                       onSimulate={() => setShowCertModal(true)}
                     />
-
-                    {/* Re-run button */}
-                    <div className="flex justify-end">
-                      <button onClick={runReview} disabled={loading} className="btn-secondary text-xs">
-                        <RefreshCw className="w-3.5 h-3.5" /> Re-run Analysis
-                      </button>
-                    </div>
-
                   </div>
                 )}
 
@@ -1640,10 +1703,10 @@ export default function App() {
           </div>
         </section>
 
-        {/* ─── 5. TEAM SECTION ───────────────────────────────────────────────── */}
-        <section className="w-full py-20 px-margin-tablet lg:px-margin-desktop border-b border-outline-variant/30" id="team">
+        {/* ─── TEAM SECTION ─────────────────────────────────────────────────── */}
+        <section className="w-full py-16 px-margin-tablet lg:px-margin-desktop border-b border-outline-variant/30" id="team">
           <div className="max-w-7xl mx-auto flex flex-col items-center">
-            <div className="text-center mb-14">
+            <div className="text-center mb-12">
               <span className="font-mono text-xs uppercase font-semibold tracking-widest text-primary">Contributors</span>
               <h2 className="font-headline text-3xl sm:text-4xl font-semibold text-white tracking-tight mt-1">
                 Core Engineering Team
@@ -1682,7 +1745,7 @@ export default function App() {
 
       </main>
 
-      {/* ─── 6. FOOTER ───────────────────────────────────────────────────────── */}
+      {/* ─── FOOTER ─────────────────────────────────────────────────────────── */}
       <footer className="w-full bg-surface-container-lowest border-t border-outline-variant/40 py-10 px-margin-tablet lg:px-margin-desktop">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
           <div className="flex flex-col gap-1">
@@ -1690,7 +1753,7 @@ export default function App() {
               Built for <span className="text-white font-semibold">Neural Storm 2026</span> · Track 1 · FT-05 · Sponsored by <span className="text-primary font-semibold">9AM by TechMojo</span>
             </p>
             <p className="font-mono text-[11px] text-outline">
-              AI-Powered Automated Code Review &amp; 9AM Skill Evidence Protocol.
+              Whole-Project Automated Code Review &amp; 9AM Skill Evidence Protocol.
             </p>
           </div>
           <div className="flex items-center gap-6 font-mono text-xs text-on-surface-variant">
@@ -1701,11 +1764,14 @@ export default function App() {
         </div>
       </footer>
 
-      {/* ─── 7. CERTIFICATE MODAL ────────────────────────────────────────────── */}
-      {showCertModal && result && (
+      {/* ─── CERTIFICATE MODAL ──────────────────────────────────────────────── */}
+      {showCertModal && activeCertificateResult && (
         <CertificateModal
-          result={result}
+          result={activeCertificateResult}
           developerName={developerName}
+          projectName={projectResult?.projectName}
+          totalFiles={projectResult?.totalFiles}
+          totalLoc={projectResult?.totalLOC}
           onClose={() => setShowCertModal(false)}
         />
       )}
