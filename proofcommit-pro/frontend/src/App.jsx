@@ -8,7 +8,7 @@ import {
   TrendingUp, Eye, Loader2, FlaskConical, Sparkles,
   CircleDot, Hash, Layers, ArrowRight, Lock, BadgeCheck,
   X, Check, AlertCircle, ExternalLink, Upload, FolderArchive,
-  FileText, Files, FileCheck, ArrowUpRight
+  FileText, Files, FileCheck, ArrowUpRight, Folder, FolderTree, FolderOpen
 } from 'lucide-react'
 
 // ─── Ignored Directories for Zip Scan ────────────────────────────────────────
@@ -843,7 +843,7 @@ function RazorpayCard({ result, developerName, onSimulate }) {
 // ─── Main Application ────────────────────────────────────────────────────────
 export default function App() {
   const [developerName, setDeveloperName] = useState('')
-  const [inputMode, setInputMode] = useState('zip') // 'zip' | 'single'
+  const [inputMode, setInputMode] = useState('folder') // 'folder' | 'single'
   const [filename, setFilename] = useState('main.py')
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
@@ -855,12 +855,13 @@ export default function App() {
   // Single review result
   const [singleResult, setSingleResult] = useState(null)
 
-  // Project ZIP review result
+  // Project Folder / ZIP review result
   const [projectResult, setProjectResult] = useState(null)
   const [selectedFileIdx, setSelectedFileIdx] = useState(0)
 
   const textareaRef = useRef(null)
-  const fileInputRef = useRef(null)
+  const folderInputRef = useRef(null)
+  const zipInputRef = useRef(null)
 
   // Auto-resize editor
   useEffect(() => {
@@ -870,14 +871,171 @@ export default function App() {
     }
   }, [code])
 
-  // ─── Process ZIP Archive ───────────────────────────────────────────────────
-  const processZipFile = async (file) => {
-    if (!file) return
-    if (!file.name.endsWith('.zip')) {
-      setError('Please select a valid .zip project archive.')
-      return
+  // ─── Process Discovered Python Modules ──────────────────────────────────────
+  const processProjectModules = async (modules, projectName) => {
+    if (!modules || modules.length === 0) {
+      throw new Error('No Python (.py) files found in the selected folder or archive.')
     }
 
+    setProgressText(`Discovered ${modules.length} Python modules in '${projectName}'. Running AST & Random Forest analysis…`)
+
+    const fileResults = []
+    let totalLOC = 0
+    let totalASTNodes = 0
+    let totalCC = 0
+    let totalFunctions = 0
+    let totalExceptions = 0
+    let totalAsserts = 0
+    let totalDocstrings = 0
+    let totalDefectProbSum = 0
+    let totalSkillScoreSum = 0
+    let syntaxErrorCount = 0
+
+    for (let i = 0; i < modules.length; i++) {
+      const { path, getContent } = modules[i]
+      setProgressText(`Analyzing (${i + 1}/${modules.length}): ${path}`)
+      const content = await getContent()
+      const review = generateFallbackReview(content, path, developerName || 'Developer')
+
+      fileResults.push({
+        path,
+        code: content,
+        review,
+      })
+
+      totalLOC += review.metrics.lines_of_code
+      totalASTNodes += review.metrics.ast_node_count
+      totalCC += review.metrics.cyclomatic_complexity
+      totalFunctions += review.metrics.function_count
+      totalExceptions += review.metrics.exception_handlers
+      totalAsserts += review.metrics.assert_count
+      totalDocstrings += Math.round(review.metrics.docstring_ratio * Math.max(1, review.metrics.function_count))
+      totalDefectProbSum += review.ml_risk.defect_probability
+      totalSkillScoreSum += review.review.skill_evidence_score
+
+      if (!review.syntax_valid) {
+        syntaxErrorCount++
+      }
+    }
+
+    const fileCount = fileResults.length
+    const avgCC = parseFloat((totalCC / fileCount).toFixed(1))
+    const avgDefectProb = parseFloat((totalDefectProbSum / fileCount).toFixed(2))
+    const avgSkillScore = Math.round(
+      Math.max(15, Math.min(98, totalSkillScoreSum / fileCount - (syntaxErrorCount * 12)))
+    )
+
+    const docstringRatio = totalFunctions > 0
+      ? parseFloat((totalDocstrings / totalFunctions).toFixed(2))
+      : 1.0
+
+    const projectRiskLabel = avgDefectProb > 0.65 ? 'HIGH' : avgDefectProb > 0.35 ? 'MEDIUM' : 'LOW'
+    const projectRiskTier = avgDefectProb > 0.65 ? 'High Risk' : avgDefectProb > 0.35 ? 'Moderate Risk' : 'Low Risk'
+
+    const projectBadge = avgSkillScore >= 80
+      ? '🥇 9AM Gold: Elite Systems Architect'
+      : avgSkillScore >= 55
+      ? '🥈 9AM Silver: Clean Code Developer'
+      : '🥉 9AM Bronze: Practical Engineer'
+
+    const certEligible = avgSkillScore >= 60 && avgDefectProb < 0.65 && syntaxErrorCount === 0
+
+    const aggregatedProject = {
+      projectName,
+      totalFiles: fileCount,
+      totalLOC,
+      totalASTNodes,
+      syntaxErrorCount,
+      metrics: {
+        lines_of_code: totalLOC,
+        ast_node_count: totalASTNodes,
+        cyclomatic_complexity: Math.round(avgCC),
+        nesting_depth: Math.max(...fileResults.map(f => f.review.metrics.nesting_depth)),
+        function_count: totalFunctions,
+        exception_handlers: totalExceptions,
+        assert_count: totalAsserts,
+        docstring_ratio: Math.min(1.0, docstringRatio),
+      },
+      ml_risk: {
+        defect_probability: avgDefectProb,
+        predicted_risk_label: projectRiskLabel,
+        risk_tier: projectRiskTier,
+      },
+      review: {
+        summary: `Whole-project evaluation completed for '${projectName}'. Inspected ${fileCount} Python files totaling ${totalLOC.toLocaleString()} LOC. Overall architecture maintains mean CC=${avgCC} with ${totalExceptions} exception containment boundaries and ${(docstringRatio * 100).toFixed(0)}% docstring compliance.`,
+        skill_evidence_score: avgSkillScore,
+        skill_badge: projectBadge,
+      },
+      certificate_eligible: certEligible,
+      certificate_id: `PCPRO-REPO-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+      fileResults,
+    }
+
+    setProjectResult(aggregatedProject)
+    setSelectedFileIdx(0)
+    setApiSource('fallback')
+  }
+
+  // ─── Process Folder from Native Folder Input ────────────────────────────────
+  const processFolderFiles = async (fileList, customProjectName) => {
+    if (!fileList || fileList.length === 0) return
+
+    setLoading(true)
+    setError(null)
+    setSingleResult(null)
+    setProjectResult(null)
+    setProgressText('Scanning project folder for Python files…')
+
+    try {
+      const modules = []
+      let detectedName = customProjectName || 'project-folder'
+
+      for (let i = 0; i < fileList.length; i++) {
+        const item = fileList[i]
+        const path = item.webkitRelativePath || item.name || ''
+        if (!path.endsWith('.py')) continue
+
+        const parts = path.split(/[\/\\]/)
+        if (parts.length > 1 && (!customProjectName || customProjectName === 'project-folder')) {
+          detectedName = parts[0]
+        }
+
+        const isIgnored = parts.some(p => IGNORED_DIRS.includes(p.toLowerCase()))
+        if (isIgnored) continue
+
+        modules.push({
+          path,
+          getContent: () => item.text ? item.text() : new Promise((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = (e) => resolve(e.target.result)
+            reader.onerror = reject
+            reader.readAsText(item)
+          })
+        })
+      }
+
+      await processProjectModules(modules, detectedName)
+    } catch (err) {
+      setError(err.message || 'Failed to analyze project folder.')
+    } finally {
+      setLoading(false)
+      setProgressText('')
+    }
+  }
+
+  // ─── Handle Folder Selection via Native Picker ─────────────────────────────
+  const handleFolderSelect = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const rawFiles = Array.from(e.target.files)
+      const firstRel = rawFiles[0].webkitRelativePath
+      const folderName = firstRel ? firstRel.split('/')[0] : 'project-folder'
+      processFolderFiles(rawFiles, folderName)
+    }
+  }
+
+  // ─── Process ZIP Archive Fallback ───────────────────────────────────────────
+  const processZipFile = async (file) => {
+    if (!file) return
     setLoading(true)
     setError(null)
     setSingleResult(null)
@@ -886,9 +1044,8 @@ export default function App() {
 
     try {
       const zip = await JSZip.loadAsync(file)
-      const pyFiles = []
+      const modules = []
 
-      // Iterate through zip entries
       for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
         if (zipEntry.dir) continue
         if (!relativePath.endsWith('.py')) continue
@@ -897,111 +1054,13 @@ export default function App() {
         const isIgnored = parts.some(p => IGNORED_DIRS.includes(p.toLowerCase()))
         if (isIgnored) continue
 
-        pyFiles.push({ path: relativePath, entry: zipEntry })
-      }
-
-      if (pyFiles.length === 0) {
-        throw new Error('No Python (.py) files found in the uploaded zip archive.')
-      }
-
-      setProgressText(`Discovered ${pyFiles.length} Python modules. Running AST & Random Forest analysis…`)
-
-      const fileResults = []
-      let totalLOC = 0
-      let totalASTNodes = 0
-      let totalCC = 0
-      let totalFunctions = 0
-      let totalExceptions = 0
-      let totalAsserts = 0
-      let totalDocstrings = 0
-      let totalDefectProbSum = 0
-      let totalSkillScoreSum = 0
-      let syntaxErrorCount = 0
-
-      for (let i = 0; i < pyFiles.length; i++) {
-        const { path, entry } = pyFiles[i]
-        setProgressText(`Analyzing (${i + 1}/${pyFiles.length}): ${path}`)
-        const content = await entry.async('string')
-        const review = generateFallbackReview(content, path, developerName || 'Developer')
-
-        fileResults.push({
-          path,
-          code: content,
-          review,
+        modules.push({
+          path: relativePath,
+          getContent: () => zipEntry.async('string'),
         })
-
-        totalLOC += review.metrics.lines_of_code
-        totalASTNodes += review.metrics.ast_node_count
-        totalCC += review.metrics.cyclomatic_complexity
-        totalFunctions += review.metrics.function_count
-        totalExceptions += review.metrics.exception_handlers
-        totalAsserts += review.metrics.assert_count
-        totalDocstrings += Math.round(review.metrics.docstring_ratio * Math.max(1, review.metrics.function_count))
-        totalDefectProbSum += review.ml_risk.defect_probability
-        totalSkillScoreSum += review.review.skill_evidence_score
-
-        if (!review.syntax_valid) {
-          syntaxErrorCount++
-        }
       }
 
-      // Project-level Aggregates
-      const fileCount = fileResults.length
-      const avgCC = parseFloat((totalCC / fileCount).toFixed(1))
-      const avgDefectProb = parseFloat((totalDefectProbSum / fileCount).toFixed(2))
-      const avgSkillScore = Math.round(
-        Math.max(15, Math.min(98, totalSkillScoreSum / fileCount - (syntaxErrorCount * 12)))
-      )
-
-      const docstringRatio = totalFunctions > 0
-        ? parseFloat((totalDocstrings / totalFunctions).toFixed(2))
-        : 1.0
-
-      const projectRiskLabel = avgDefectProb > 0.65 ? 'HIGH' : avgDefectProb > 0.35 ? 'MEDIUM' : 'LOW'
-      const projectRiskTier = avgDefectProb > 0.65 ? 'High Risk' : avgDefectProb > 0.35 ? 'Moderate Risk' : 'Low Risk'
-
-      const projectBadge = avgSkillScore >= 80
-        ? '🥇 9AM Gold: Elite Systems Architect'
-        : avgSkillScore >= 55
-        ? '🥈 9AM Silver: Clean Code Developer'
-        : '🥉 9AM Bronze: Practical Engineer'
-
-      const certEligible = avgSkillScore >= 60 && avgDefectProb < 0.65 && syntaxErrorCount === 0
-
-      const aggregatedProject = {
-        projectName: file.name,
-        totalFiles: fileCount,
-        totalLOC,
-        totalASTNodes,
-        syntaxErrorCount,
-        metrics: {
-          lines_of_code: totalLOC,
-          ast_node_count: totalASTNodes,
-          cyclomatic_complexity: Math.round(avgCC),
-          nesting_depth: Math.max(...fileResults.map(f => f.review.metrics.nesting_depth)),
-          function_count: totalFunctions,
-          exception_handlers: totalExceptions,
-          assert_count: totalAsserts,
-          docstring_ratio: Math.min(1.0, docstringRatio),
-        },
-        ml_risk: {
-          defect_probability: avgDefectProb,
-          predicted_risk_label: projectRiskLabel,
-          risk_tier: projectRiskTier,
-        },
-        review: {
-          summary: `Whole-project evaluation completed for ${file.name}. Inspected ${fileCount} Python files totaling ${totalLOC.toLocaleString()} LOC. Overall architecture maintains mean CC=${avgCC} with ${totalExceptions} exception containment boundaries and ${(docstringRatio * 100).toFixed(0)}% docstring compliance.`,
-          skill_evidence_score: avgSkillScore,
-          skill_badge: projectBadge,
-        },
-        certificate_eligible: certEligible,
-        certificate_id: `PCPRO-REPO-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
-        fileResults,
-      }
-
-      setProjectResult(aggregatedProject)
-      setSelectedFileIdx(0)
-      setApiSource('fallback')
+      await processProjectModules(modules, file.name)
     } catch (err) {
       setError(err.message || 'Failed to process project zip archive.')
     } finally {
@@ -1034,22 +1093,94 @@ export default function App() {
     }
   }, [code, filename, developerName])
 
-  // ─── Handle File Drops ─────────────────────────────────────────────────────
-  const handleDrop = (e) => {
+  // ─── Recursive Drag-and-Drop Handler (Folders, ZIPs, .py Files) ────────────
+  const handleDrop = async (e) => {
     e.preventDefault()
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const droppedFile = e.dataTransfer.files[0]
-      if (droppedFile.name.endsWith('.zip')) {
-        setInputMode('zip')
-        processZipFile(droppedFile)
-      } else if (droppedFile.name.endsWith('.py')) {
+    const dt = e.dataTransfer
+    if (!dt) return
+
+    // 1. If items with webkitGetAsEntry (Folder Drag-and-Drop)
+    if (dt.items && dt.items.length > 0 && dt.items[0].webkitGetAsEntry) {
+      const items = Array.from(dt.items)
+      const folderEntries = []
+      let zipFile = null
+      let pyFile = null
+
+      for (const it of items) {
+        const entry = it.webkitGetAsEntry ? it.webkitGetAsEntry() : null
+        if (entry && entry.isDirectory) {
+          folderEntries.push(entry)
+        } else if (it.kind === 'file') {
+          const f = it.getAsFile()
+          if (f && f.name.endsWith('.zip')) zipFile = f
+          else if (f && f.name.endsWith('.py')) pyFile = f
+        }
+      }
+
+      if (folderEntries.length > 0) {
+        setInputMode('folder')
+        setLoading(true)
+        setProgressText('Traversing dropped folder hierarchy…')
+
+        const collectedFiles = []
+        async function readDir(dirEntry, currentPath) {
+          const reader = dirEntry.createReader()
+          const entries = await new Promise((resolve) => reader.readEntries(resolve, () => resolve([])))
+          for (const ent of entries) {
+            if (ent.isFile) {
+              await new Promise((resolve) => {
+                ent.file((file) => {
+                  file.webkitRelativePath = currentPath + file.name
+                  collectedFiles.push(file)
+                  resolve()
+                }, () => resolve())
+              })
+            } else if (ent.isDirectory) {
+              const dirName = ent.name.toLowerCase()
+              if (!IGNORED_DIRS.includes(dirName)) {
+                await readDir(ent, `${currentPath}${ent.name}/`)
+              }
+            }
+          }
+        }
+
+        for (const fEntry of folderEntries) {
+          await readDir(fEntry, `${fEntry.name}/`)
+        }
+
+        const projName = folderEntries[0]?.name || 'project-folder'
+        processFolderFiles(collectedFiles, projName)
+        return
+      }
+
+      if (zipFile) {
+        setInputMode('folder')
+        processZipFile(zipFile)
+        return
+      }
+
+      if (pyFile) {
         setInputMode('single')
-        setFilename(droppedFile.name)
-        const reader = new FileReader()
-        reader.onload = (event) => setCode(event.target.result)
-        reader.readAsText(droppedFile)
+        setFilename(pyFile.name)
+        const text = await pyFile.text()
+        setCode(text)
+        return
+      }
+    }
+
+    // 2. Fallback to standard dataTransfer.files
+    if (dt.files && dt.files.length > 0) {
+      const f = dt.files[0]
+      if (f.name.endsWith('.zip')) {
+        setInputMode('folder')
+        processZipFile(f)
+      } else if (f.name.endsWith('.py')) {
+        setInputMode('single')
+        setFilename(f.name)
+        const text = await f.text()
+        setCode(text)
       } else {
-        setError('Please drop a .zip archive or a .py Python file.')
+        processFolderFiles(Array.from(dt.files), f.name)
       }
     }
   }
@@ -1146,7 +1277,7 @@ export default function App() {
 
             {/* Subline */}
             <p className="font-body text-base sm:text-lg text-on-surface-variant max-w-2xl mt-4 mb-8 leading-relaxed">
-              Upload your complete Python project ZIP or paste your code. ProofCommit Pro runs an automated AST &amp; Random Forest audit across every module and mints a verifiable 9AM Skill Certificate.
+              Upload your complete Python project folder or paste your code. ProofCommit Pro runs an automated AST &amp; Random Forest audit across every module in-memory and mints a verifiable 9AM Skill Certificate.
             </p>
 
             {/* CTA Group */}
@@ -1154,10 +1285,10 @@ export default function App() {
               <a
                 className="inline-flex items-center gap-space-sm px-space-xl py-space-md rounded-lg font-mono text-xs font-semibold bg-primary-container text-white hover:bg-primary-container/90 transition-all shadow-[0_0_24px_-4px_rgba(99,102,241,0.35)]"
                 href="#demo"
-                onClick={() => setInputMode('zip')}
+                onClick={() => setInputMode('folder')}
               >
-                <FolderArchive className="w-4 h-4" />
-                <span>Upload Project ZIP</span>
+                <FolderOpen className="w-4 h-4" />
+                <span>Upload Project Folder</span>
                 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
               </a>
               <a
@@ -1179,7 +1310,7 @@ export default function App() {
             <div className="text-center mb-12">
               <span className="font-mono text-xs uppercase font-semibold tracking-widest text-primary">Pipeline Workflow</span>
               <h2 className="font-headline text-3xl sm:text-4xl font-semibold text-white tracking-tight mt-1">
-                From Whole-Project ZIP to Verified Proof in Seconds
+                From Project Folder to Verified Proof in Seconds
               </h2>
             </div>
 
@@ -1187,13 +1318,13 @@ export default function App() {
               <div className="relative flex flex-col bg-surface-container border border-outline-variant/40 hover:border-primary/50 transition-colors p-6 rounded-xl">
                 <div className="flex items-center justify-between mb-4">
                   <div className="w-12 h-12 rounded-lg bg-surface-container-high border border-outline-variant/50 flex items-center justify-center text-primary">
-                    <FolderArchive className="w-6 h-6" />
+                    <FolderTree className="w-6 h-6" />
                   </div>
                   <span className="font-mono text-xs font-bold text-outline px-2 py-1 rounded bg-surface-container-lowest border border-outline-variant/30">01</span>
                 </div>
-                <h3 className="font-headline text-lg font-semibold text-white mb-2">Upload Repository ZIP</h3>
+                <h3 className="font-headline text-lg font-semibold text-white mb-2">Select Project Folder</h3>
                 <p className="text-sm text-on-surface-variant leading-relaxed">
-                  Drop your codebase archive. The browser engine unpacks all Python modules in memory with zero cloud file storage risks.
+                  Choose or drop your codebase directory. The browser engine audits all Python modules in memory with zero cloud file storage risks.
                 </p>
               </div>
 
@@ -1253,8 +1384,8 @@ export default function App() {
                     <span className="text-secondary font-medium">multi-file ready</span>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-on-surface"><span className="text-secondary font-bold">[PASS]</span> In-memory zip extraction (Zero disk writes)</p>
-                    <p className="text-on-surface"><span className="text-secondary font-bold">[PASS]</span> Recursive Python file discovery</p>
+                    <p className="text-on-surface"><span className="text-secondary font-bold">[PASS]</span> In-memory directory traversal (Zero disk writes)</p>
+                    <p className="text-on-surface"><span className="text-secondary font-bold">[PASS]</span> Recursive Python module discovery</p>
                     <p className="text-outline"><span className="text-tertiary font-bold">[INFO]</span> Batch Random Forest defect classification</p>
                   </div>
                 </div>
@@ -1293,37 +1424,37 @@ export default function App() {
             <div className="text-center mb-10">
               <span className="font-mono text-xs uppercase font-semibold tracking-widest text-primary">Live Evaluation Runtime</span>
               <h2 className="font-headline text-3xl sm:text-4xl font-semibold text-white tracking-tight mt-1">
-                Upload Project ZIP or Review Code
+                Upload Project Folder or Review Code
               </h2>
               <p className="text-sm text-on-surface-variant max-w-xl mx-auto mt-2">
-                Upload your actual Python project .zip file to audit all files at once, or paste single-file code directly.
+                Select your actual Python project folder to audit all files at once, or paste single-file code directly.
               </p>
             </div>
 
             {/* Mode Switcher Tabs with Animated Sliding Pill */}
             <div className="flex justify-center mb-8 px-4">
-              <div className="relative flex p-1 bg-[#0e0e13] border border-[#464554]/60 rounded-xl font-mono text-xs max-w-md w-full shadow-2xl overflow-hidden">
+              <div className="relative flex p-1.5 bg-[#0e0e13] border border-[#464554]/60 rounded-xl font-mono text-xs max-w-md w-full shadow-2xl overflow-hidden">
                 {/* Animated Sliding Highlight Pill */}
                 <div
-                  className="absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg bg-gradient-to-r from-[#c0c1ff] to-[#8083ff] shadow-[0_0_20px_rgba(128,131,255,0.45)] transition-transform duration-300 ease-out pointer-events-none"
+                  className="absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] rounded-lg bg-gradient-to-r from-[#c0c1ff] via-[#a5a6ff] to-[#8083ff] shadow-[0_0_24px_rgba(128,131,255,0.45)] transition-transform duration-300 ease-out pointer-events-none"
                   style={{
-                    left: '4px',
-                    transform: inputMode === 'zip' ? 'translateX(0%)' : 'translateX(100%)',
+                    left: '6px',
+                    transform: inputMode === 'folder' ? 'translateX(0%)' : 'translateX(100%)',
                   }}
                 />
 
-                {/* Tab 1: ZIP */}
+                {/* Tab 1: Folder */}
                 <button
                   type="button"
-                  onClick={() => { setInputMode('zip'); setError(null) }}
+                  onClick={() => { setInputMode('folder'); setError(null) }}
                   className={`relative z-10 flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg transition-colors duration-200 font-semibold ${
-                    inputMode === 'zip'
-                      ? 'text-[#0a0a0f] font-bold'
+                    inputMode === 'folder'
+                      ? 'text-[#09090d] font-bold'
                       : 'text-[#908fa0] hover:text-white'
                   }`}
                 >
-                  <FolderArchive className="w-4 h-4" />
-                  <span>Upload Project (.zip)</span>
+                  <Folder className="w-4 h-4" />
+                  <span>Upload Project Folder</span>
                 </button>
 
                 {/* Tab 2: Single */}
@@ -1332,7 +1463,7 @@ export default function App() {
                   onClick={() => { setInputMode('single'); setError(null) }}
                   className={`relative z-10 flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg transition-colors duration-200 font-semibold ${
                     inputMode === 'single'
-                      ? 'text-[#0a0a0f] font-bold'
+                      ? 'text-[#09090d] font-bold'
                       : 'text-[#908fa0] hover:text-white'
                   }`}
                 >
@@ -1348,8 +1479,8 @@ export default function App() {
               {/* Left Column: Upload / Editor Zone */}
               <div className="lg:col-span-6 space-y-4">
                 
-                {inputMode === 'zip' ? (
-                  /* ZIP Upload Card */
+                {inputMode === 'folder' ? (
+                  /* Folder Upload Card */
                   <div
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={handleDrop}
@@ -1357,7 +1488,16 @@ export default function App() {
                   >
                     <input
                       type="file"
-                      ref={fileInputRef}
+                      ref={folderInputRef}
+                      webkitdirectory=""
+                      directory=""
+                      multiple
+                      className="hidden"
+                      onChange={handleFolderSelect}
+                    />
+                    <input
+                      type="file"
+                      ref={zipInputRef}
                       accept=".zip"
                       className="hidden"
                       onChange={(e) => {
@@ -1366,27 +1506,41 @@ export default function App() {
                     />
 
                     <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-surface-container-high border border-outline-variant/50 flex items-center justify-center text-primary group-hover:scale-105 transition-transform">
-                      <FolderArchive className="w-8 h-8" />
+                      <FolderTree className="w-8 h-8" />
                     </div>
 
                     <h3 className="font-headline text-lg font-bold text-white mb-1">
-                      Upload Project ZIP Archive
+                      Upload Project Folder
                     </h3>
                     <p className="text-xs text-on-surface-variant max-w-sm mx-auto mb-6 leading-relaxed">
-                      Drag &amp; drop your Python codebase (.zip), or click to browse. The engine will unpack and analyze every Python module inside.
+                      Select your Python codebase directory from disk or drag &amp; drop it here. ProofCommit Pro will audit all Python modules in-memory.
                     </p>
 
-                    <button
-                      type="button"
-                      disabled={loading}
-                      onClick={() => fileInputRef.current?.click()}
-                      className="btn-primary justify-center py-2.5 px-6 mx-auto text-xs"
-                    >
-                      <Upload className="w-4 h-4" /> Select .zip Archive
-                    </button>
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={() => folderInputRef.current?.click()}
+                        className="btn-primary justify-center py-2.5 px-6 text-xs w-full sm:w-auto"
+                      >
+                        <FolderOpen className="w-4 h-4" /> Select Project Folder
+                      </button>
+                    </div>
 
-                    <p className="font-mono text-[11px] text-outline mt-4">
-                      In-memory processing · Skips __pycache__, .git, and virtual environments
+                    <div className="flex items-center justify-center gap-2 mt-4 pt-3 border-t border-outline-variant/20">
+                      <span className="text-xs text-outline">Have a compressed archive?</span>
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={() => zipInputRef.current?.click()}
+                        className="text-xs text-primary hover:underline font-mono inline-flex items-center gap-1"
+                      >
+                        <FolderArchive className="w-3.5 h-3.5" /> Upload .zip instead
+                      </button>
+                    </div>
+
+                    <p className="font-mono text-[11px] text-outline mt-3">
+                      In-memory directory traversal · Skips __pycache__, .git, and virtual environments
                     </p>
                   </div>
                 ) : (
@@ -1486,11 +1640,11 @@ export default function App() {
                     <div>
                       <h3 className="font-headline text-lg font-semibold text-white">ProofCommit Pro Review Engine</h3>
                       <p className="text-xs text-on-surface-variant max-w-sm mt-1 leading-relaxed">
-                        Upload your Python project ZIP or paste your source code to generate multi-file AST metrics, Random Forest defect probability, and the 9AM Skill Certificate.
+                        Upload your Python project folder or paste your source code to generate multi-file AST metrics, Random Forest defect probability, and the 9AM Skill Certificate.
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-1.5 justify-center font-mono text-[11px] text-outline">
-                      {['In-Memory ZIP Parser', 'Multi-File Aggregation', 'Random Forest ML', 'AST Tree Features', '9AM Certificate'].map(f => (
+                      {['In-Memory Folder Scanner', 'Multi-File Aggregation', 'Random Forest ML', 'AST Tree Features', '9AM Certificate'].map(f => (
                         <span key={f} className="px-2 py-0.5 rounded bg-surface-container border border-outline-variant/30">{f}</span>
                       ))}
                     </div>
@@ -1506,7 +1660,7 @@ export default function App() {
                       <div className="flex items-start justify-between gap-3 mb-4">
                         <div className="flex items-center gap-2.5">
                           <div className="w-10 h-10 rounded-xl bg-primary/20 border border-primary/40 flex items-center justify-center text-primary">
-                            <FolderArchive className="w-5 h-5" />
+                            <FolderTree className="w-5 h-5" />
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
