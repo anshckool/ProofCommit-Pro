@@ -3,8 +3,11 @@
 [![Hackathon](https://img.shields.io/badge/Hackathon-Neural%20Storm%202026%20(JNTUH)-blue.svg)](https://jntuh.ac.in)
 [![Track](https://img.shields.io/badge/Track%201-Future%20Tech%20(FT--05)-emerald.svg)](#section-1-project-title--official-problem-statement-code)
 [![Sponsor](https://img.shields.io/badge/Sponsored%20By-9AM%20by%20TechMojo-orange.svg)](https://9am.careers)
+[![Live on Vercel](https://img.shields.io/badge/Vercel-Live%20Deployment-black?logo=vercel)](https://proofcommit-pro.vercel.app)
 [![ML Accuracy](https://img.shields.io/badge/ML%20Accuracy-91.00%25-brightgreen.svg)](#section-8-quantitative-model-accuracy--evaluation-metrics)
 [![Status](https://img.shields.io/badge/Build-Passing%20(Offline%20Ready)-success.svg)](#section-6-exact-local-execution-commands)
+
+> 🚀 **Live Production Deployment**: [**https://proofcommit-pro.vercel.app**](https://proofcommit-pro.vercel.app)
 
 ---
 
