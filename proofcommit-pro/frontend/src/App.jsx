@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
+import { jsPDF } from 'jspdf'
 import {
   Code2, Zap, Shield, Trophy, AlertTriangle, CheckCircle, Info,
   Copy, Download, CreditCard, ChevronRight, BarChart3, GitBranch,
@@ -596,12 +597,12 @@ function CertificateCard({ result, developerName, onPrint, onClose }) {
     ? '9AM Silver: Algorithmic Builder'
     : '9AM Bronze: Foundation Developer'
 
-  const downloadCertificateAsPng = () => {
+  const generateCertificateCanvas = () => {
     const canvas = document.createElement('canvas')
     canvas.width = 1200
     canvas.height = 760
     const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    if (!ctx) return null
 
     // Background gradient
     const bgGrad = ctx.createLinearGradient(0, 0, 1200, 760)
@@ -716,11 +717,55 @@ function CertificateCard({ result, developerName, onPrint, onClose }) {
     ctx.fillStyle = '#f59e0b'
     ctx.fillText('Sponsored by 9AM by TechMojo (9am.careers)', 1120, 695)
 
-    // Trigger download
+    return canvas
+  }
+
+  const downloadCertificateAsPdf = () => {
+    const canvas = generateCertificateCanvas()
+    if (!canvas) return
+    const imgData = canvas.toDataURL('image/png')
+    const pdf = new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: 'a4'
+    })
+    pdf.addImage(imgData, 'PNG', 0, 0, 297, 210)
+    pdf.save(`ProofCommit-Certificate-${result.certificate_id}.pdf`)
+  }
+
+  const downloadCertificateAsPng = () => {
+    const canvas = generateCertificateCanvas()
+    if (!canvas) return
     const link = document.createElement('a')
     link.download = `ProofCommit-Certificate-${result.certificate_id}.png`
     link.href = canvas.toDataURL('image/png')
     link.click()
+  }
+
+  const printCertificate = () => {
+    const canvas = generateCertificateCanvas()
+    if (!canvas) return
+    const imgData = canvas.toDataURL('image/png')
+    const printWindow = window.open('', '_blank')
+    if (printWindow) {
+      printWindow.document.write(`<!DOCTYPE html>
+<html>
+  <head>
+    <title>ProofCommit-Certificate-${result.certificate_id}</title>
+    <style>
+      @page { size: landscape; margin: 0; }
+      html, body { margin: 0; padding: 0; background: #0f172a; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+      img { width: 100vw; height: 100vh; object-fit: contain; display: block; margin: auto; }
+    </style>
+  </head>
+  <body>
+    <img src="${imgData}" onload="window.focus(); window.print();" />
+  </body>
+</html>`)
+      printWindow.document.close()
+    } else {
+      downloadCertificateAsPdf()
+    }
   }
 
   return (
@@ -810,14 +855,17 @@ function CertificateCard({ result, developerName, onPrint, onClose }) {
         </div>
 
         {/* Action buttons */}
-        <div className="flex gap-3 mt-4 no-print">
-          <button onClick={downloadCertificateAsPng} className="btn-amber flex-1 justify-center">
-            <Download className="w-4 h-4" /> Download Certificate (.png)
+        <div className="flex flex-wrap gap-3 mt-4 no-print">
+          <button onClick={downloadCertificateAsPdf} className="btn-primary flex-1 justify-center py-2.5">
+            <Download className="w-4 h-4" /> Download PDF (.pdf)
           </button>
-          <button onClick={onPrint} className="btn-primary flex-1 justify-center">
-            <Printer className="w-4 h-4" /> Print / Save PDF
+          <button onClick={downloadCertificateAsPng} className="btn-amber flex-1 justify-center py-2.5">
+            <FileCode className="w-4 h-4" /> Download Image (.png)
           </button>
-          <button onClick={onClose} className="btn-secondary">
+          <button onClick={printCertificate} className="btn-secondary justify-center py-2.5">
+            <Printer className="w-4 h-4" /> Print
+          </button>
+          <button onClick={onClose} className="btn-secondary py-2.5">
             <X className="w-4 h-4" /> Close
           </button>
         </div>
