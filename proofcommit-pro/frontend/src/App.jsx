@@ -596,6 +596,133 @@ function CertificateCard({ result, developerName, onPrint, onClose }) {
     ? '9AM Silver: Algorithmic Builder'
     : '9AM Bronze: Foundation Developer'
 
+  const downloadCertificateAsPng = () => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 1200
+    canvas.height = 760
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    // Background gradient
+    const bgGrad = ctx.createLinearGradient(0, 0, 1200, 760)
+    bgGrad.addColorStop(0, '#0f172a')
+    bgGrad.addColorStop(0.5, '#1e1b4b')
+    bgGrad.addColorStop(1, '#0f172a')
+    ctx.fillStyle = bgGrad
+    ctx.fillRect(0, 0, 1200, 760)
+
+    // Outer border
+    ctx.strokeStyle = '#4338ca'
+    ctx.lineWidth = 4
+    ctx.strokeRect(20, 20, 1160, 720)
+
+    // Inner subtle border
+    ctx.strokeStyle = '#6366f1'
+    ctx.lineWidth = 1
+    ctx.strokeRect(28, 28, 1144, 704)
+
+    // Header brand
+    ctx.textAlign = 'center'
+    ctx.font = 'bold 16px sans-serif'
+    ctx.fillStyle = '#818cf8'
+    ctx.fillText('PROOFCOMMIT PRO   ·   9AM BY TECHMOJO', 600, 75)
+
+    // Certificate Title
+    ctx.font = '900 36px sans-serif'
+    ctx.fillStyle = '#ffffff'
+    ctx.fillText('9AM VERIFIED DEVELOPER', 600, 125)
+
+    ctx.font = 'bold 22px sans-serif'
+    ctx.fillStyle = '#a5b4fc'
+    ctx.fillText('Skill Evidence Certificate', 600, 165)
+
+    // Awarded To Box
+    ctx.fillStyle = '#020617'
+    ctx.fillRect(80, 205, 1040, 130)
+    ctx.strokeStyle = '#1e293b'
+    ctx.lineWidth = 1
+    ctx.strokeRect(80, 205, 1040, 130)
+
+    // Awarded To Label & Name
+    ctx.textAlign = 'left'
+    ctx.font = '13px sans-serif'
+    ctx.fillStyle = '#64748b'
+    ctx.fillText('AWARDED TO', 110, 240)
+
+    ctx.font = '900 32px sans-serif'
+    ctx.fillStyle = '#ffffff'
+    ctx.fillText(developerName || 'Developer', 110, 280)
+
+    ctx.font = 'bold 16px sans-serif'
+    ctx.fillStyle = '#fbbf24'
+    ctx.fillText(tierName, 110, 315)
+
+    // Score Circle on right of box
+    ctx.textAlign = 'center'
+    ctx.font = '900 50px monospace'
+    ctx.fillStyle = '#fbbf24'
+    ctx.fillText(String(result.review.skill_evidence_score), 1020, 275)
+
+    ctx.font = '12px sans-serif'
+    ctx.fillStyle = '#94a3b8'
+    ctx.fillText('Skill Evidence Score', 1020, 305)
+
+    // Grid of 6 Details
+    const details = [
+      ['Certificate ID', result.certificate_id],
+      ['Review Date', certDate],
+      ['ML Risk Assessment', result.ml_risk.risk_tier || result.ml_risk.risk_level || 'Low Risk'],
+      ['Defect Probability', `${(result.ml_risk.defect_probability * 100).toFixed(1)}%`],
+      ['File Reviewed', result.filename],
+      ['AI Engine', 'Random Forest + Gemini 2.5 Flash'],
+    ]
+
+    details.forEach(([k, v], idx) => {
+      const col = idx % 2
+      const row = Math.floor(idx / 2)
+      const x = 80 + col * 530
+      const y = 360 + row * 90
+
+      ctx.fillStyle = '#090d16'
+      ctx.fillRect(x, y, 510, 70)
+      ctx.strokeStyle = '#1e293b'
+      ctx.lineWidth = 1
+      ctx.strokeRect(x, y, 510, 70)
+
+      ctx.textAlign = 'left'
+      ctx.font = '12px sans-serif'
+      ctx.fillStyle = '#64748b'
+      ctx.fillText(k, x + 20, y + 28)
+
+      ctx.font = 'bold 15px monospace'
+      ctx.fillStyle = '#e2e8f0'
+      ctx.fillText(String(v), x + 20, y + 54)
+    })
+
+    // Footer
+    ctx.strokeStyle = '#1e293b'
+    ctx.beginPath()
+    ctx.moveTo(80, 655)
+    ctx.lineTo(1120, 655)
+    ctx.stroke()
+
+    ctx.textAlign = 'left'
+    ctx.font = '14px sans-serif'
+    ctx.fillStyle = '#818cf8'
+    ctx.fillText('✔ Verified by ProofCommit Pro AI Engine (Neural Storm 2026 / FT-05)', 80, 695)
+
+    ctx.textAlign = 'right'
+    ctx.font = 'bold 14px sans-serif'
+    ctx.fillStyle = '#f59e0b'
+    ctx.fillText('Sponsored by 9AM by TechMojo (9am.careers)', 1120, 695)
+
+    // Trigger download
+    const link = document.createElement('a')
+    link.download = `ProofCommit-Certificate-${result.certificate_id}.png`
+    link.href = canvas.toDataURL('image/png')
+    link.click()
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in" id="cert-print-root">
       <div className="relative w-full max-w-2xl">
@@ -603,7 +730,7 @@ function CertificateCard({ result, developerName, onPrint, onClose }) {
           <X className="w-6 h-6" />
         </button>
         {/* Certificate */}
-        <div className="cert-gradient border-2 border-indigo-700/50 rounded-2xl p-8 shadow-2xl glow-indigo relative overflow-hidden">
+        <div id="cert-printable" className="cert-gradient border-2 border-indigo-700/50 rounded-2xl p-8 shadow-2xl glow-indigo relative overflow-hidden">
           {/* Background decorations */}
           <div className="absolute inset-0 opacity-5">
             <div className="absolute top-4 left-4 w-32 h-32 rounded-full border-2 border-indigo-400" />
@@ -647,10 +774,10 @@ function CertificateCard({ result, developerName, onPrint, onClose }) {
             {[
               ['Certificate ID', result.certificate_id],
               ['Review Date', certDate],
-              ['ML Risk Assessment', result.ml_risk.risk_tier],
+              ['ML Risk Assessment', result.ml_risk.risk_tier || result.ml_risk.risk_level || 'Low Risk'],
               ['Defect Probability', `${(result.ml_risk.defect_probability * 100).toFixed(1)}%`],
               ['File Reviewed', result.filename],
-              ['AI Model', 'Random Forest + Gemini'],
+              ['AI Model', 'Random Forest + Gemini 2.5 Flash'],
             ].map(([k, v]) => (
               <div key={k} className="bg-slate-900/50 rounded-lg p-2.5 border border-slate-800/50">
                 <div className="text-xs text-slate-500">{k}</div>
@@ -684,6 +811,9 @@ function CertificateCard({ result, developerName, onPrint, onClose }) {
 
         {/* Action buttons */}
         <div className="flex gap-3 mt-4 no-print">
+          <button onClick={downloadCertificateAsPng} className="btn-amber flex-1 justify-center">
+            <Download className="w-4 h-4" /> Download Certificate (.png)
+          </button>
           <button onClick={onPrint} className="btn-primary flex-1 justify-center">
             <Printer className="w-4 h-4" /> Print / Save PDF
           </button>
